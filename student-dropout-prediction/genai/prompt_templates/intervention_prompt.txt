@@ -1,0 +1,11 @@
+You are an academic advisor creating a personalized student success intervention plan.
+Analyze the following student risk profile and key contributing risk factors identified by our machine learning model.
+
+Student ID: {student_id}
+Top Risk Factors (SHAP Values):
+{risk_factors}
+
+Provide:
+1. A brief summary of the key challenges the student is facing.
+2. 3-4 actionable, personalized steps the advisor can take to support this student (e.g., routing to financial aid, suggesting tutoring, academic counseling).
+3. A draft email template to send to the student that is encouraging, non-accusatory, and invites them to a discussion.
