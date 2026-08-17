@@ -1,0 +1,20 @@
+{
+  "student_id": "STU10432",
+  "risk_score": 0.7821,
+  "risk_band": "high",
+  "flagged": true,
+  "top_reasons": [
+    {
+      "feature": "curricular_units_2nd_sem_approved",
+      "impact": 0.21
+    },
+    {
+      "feature": "tuition_fees_up_to_date",
+      "impact": 0.14
+    },
+    {
+      "feature": "curricular_units_1st_sem_grade",
+      "impact": -0.06
+    }
+  ]
+}
