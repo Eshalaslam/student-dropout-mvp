@@ -8,6 +8,17 @@ import pandas as pd
 from backend.app.services.feature_mapping import convert_to_model_input
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "../../models")
+FALLBACK_DIR = os.path.join(os.path.dirname(__file__), "../../../../")
+
+
+def _resolve_model_path(filename: str) -> str:
+    primary = os.path.join(MODELS_DIR, filename)
+    if os.path.exists(primary):
+        return primary
+    fallback = os.path.join(FALLBACK_DIR, filename)
+    if os.path.exists(fallback):
+        return fallback
+    return primary
 
 
 class ModelService:
@@ -19,9 +30,9 @@ class ModelService:
 
     def __init__(self):
         if ModelService._model is None:
-            ModelService._model = joblib.load(os.path.join(MODELS_DIR, "dropout_model.pkl"))
-            ModelService._scaler = joblib.load(os.path.join(MODELS_DIR, "scaler.pkl"))
-            ModelService._threshold = joblib.load(os.path.join(MODELS_DIR, "threshold.pkl"))
+            ModelService._model = joblib.load(_resolve_model_path("dropout_model.pkl"))
+            ModelService._scaler = joblib.load(_resolve_model_path("scaler.pkl"))
+            ModelService._threshold = float(joblib.load(_resolve_model_path("threshold.pkl")))
 
     def predict(self, features: dict) -> dict:
         """Run inference and return risk score, band, and flagged status."""
@@ -42,7 +53,8 @@ class ModelService:
         return {
             "risk_score": round(prob, 4),
             "risk_band": band,
-            "flagged": prob >= self._threshold,
+            "flagged": bool(prob >= self._threshold),
+            "decision_threshold": round(self._threshold, 4)
         }
 
     def get_scaled_input(self, features: dict) -> pd.DataFrame:
