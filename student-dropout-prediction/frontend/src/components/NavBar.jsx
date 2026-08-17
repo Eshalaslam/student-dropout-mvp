@@ -1,8 +1,9 @@
-import { LayoutDashboard, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, LogOut } from "lucide-react";
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "list", label: "Student List", icon: Users },
+  { id: "interventions", label: "Mentor Interventions", icon: ClipboardList },
 ];
 
 // Replaces the static demo header. `active` should be "dashboard" or "list"

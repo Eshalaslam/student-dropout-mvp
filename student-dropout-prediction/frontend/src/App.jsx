@@ -1,10 +1,13 @@
 import { useState } from "react";
-import NavBar from "./components/NavBar";
+import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import StudentList from "./pages/StudentList";
 import StudentDetails from "./pages/StudentDetails";
+import MentorInterventionTracking from "./pages/MentorInterventionTracking";
 import DATA from "./data/mockStudents";
+import { INTERVENTION_DATA } from "./data/mockInterventions";
 
 // App shell — plain state-based view switching (no router dependency added).
 // Swap `mockStudents.js` for a real API call once the backend is ready;
@@ -12,7 +15,7 @@ import DATA from "./data/mockStudents";
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [students, setStudents] = useState(DATA);
-  const [view, setView] = useState("dashboard"); // "dashboard" | "list" | "details"
+  const [view, setView] = useState("dashboard"); // "dashboard" | "list" | "details" | "interventions"
   const [returnView, setReturnView] = useState("dashboard"); // where "back" from details goes
   const [selectedId, setSelectedId] = useState(null);
 
@@ -62,20 +65,30 @@ export default function App() {
   const activeNav = view === "details" ? returnView : view;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <NavBar active={activeNav} onNavigate={handleNavigate} onLogout={handleLogout} />
-      <main className="max-w-6xl mx-auto px-6 py-6">
-        {view === "dashboard" && <Dashboard students={students} onSelect={(id) => handleSelect(id, "dashboard")} />}
-        {view === "list" && <StudentList students={students} onSelect={(id) => handleSelect(id, "list")} />}
-        {view === "details" && (
-          <StudentDetails
-            student={selected}
-            onBack={handleBack}
-            onAddIntervention={handleAddIntervention}
-            onUpdateInterventionStatus={handleUpdateInterventionStatus}
-          />
-        )}
-      </main>
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Fixed left sidebar */}
+      <Sidebar active={activeNav} onNavigate={handleNavigate} />
+
+      {/* Main area — offset by sidebar width (w-56 = 224px) */}
+      <div className="flex-1 flex flex-col min-h-screen ml-56">
+        {/* Sticky top bar */}
+        <TopBar view={view} onLogout={handleLogout} />
+
+        {/* Scrollable page content */}
+        <main className="flex-1 px-6 py-6 mt-14 overflow-y-auto">
+          {view === "dashboard" && <Dashboard students={students} onSelect={(id) => handleSelect(id, "dashboard")} />}
+          {view === "list" && <StudentList students={students} onSelect={(id) => handleSelect(id, "list")} />}
+          {view === "interventions" && <MentorInterventionTracking students={INTERVENTION_DATA} />}
+          {view === "details" && (
+            <StudentDetails
+              student={selected}
+              onBack={handleBack}
+              onAddIntervention={handleAddIntervention}
+              onUpdateInterventionStatus={handleUpdateInterventionStatus}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
