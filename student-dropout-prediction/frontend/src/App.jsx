@@ -12,6 +12,7 @@ import StudentDetails from "./pages/StudentDetails";
 import MentorInterventionTracking from "./pages/MentorInterventionTracking";
 import Reports from "./pages/Reports";
 import BiasPrivacyAudit from "./pages/BiasPrivacyAudit";
+import ManageMentors from "./pages/ManageMentors";
 
 import DATA from "./data/mockStudents";
 import { INTERVENTION_DATA } from "./data/mockInterventions";
@@ -85,6 +86,14 @@ function AppRoutes() {
           element={<MentorInterventionTracking students={scopedInterventions} />}
         />
         <Route path="/reports" element={<Reports students={scopedInterventions} />} />
+        <Route
+          path="/mentors"
+          element={
+            <PrivateRoute allowedRoles={["Admin"]}>
+              <ManageMentors students={students} />
+            </PrivateRoute>
+          }
+        />
         <Route
           path="/audit"
           element={

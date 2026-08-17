@@ -1,15 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, AlertCircle, ShieldCheck, User } from "lucide-react";
-import { USERS, authenticate } from "../data/mockAuth";
+import { authenticate } from "../data/mockAuth";
 import { ROLE_STYLES } from "../utils/useRbac";
 import { useAuth } from "../context/AuthContext";
 
-// Demo user pills — one click fills credentials for quick role-switching during testing.
-const DEMO_PILLS = USERS.map((u) => ({ name: u.name, username: u.username, password: u.password, role: u.role }));
-
 export default function Login() {
-  const { login } = useAuth();
+  const { users, login } = useAuth();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
@@ -25,11 +22,15 @@ export default function Login() {
     setError("");
     setLoading(true);
     setTimeout(() => {
-      const user = authenticate(username, password);
+      const user = authenticate(username, password, users);
       setLoading(false);
       if (user) {
-        login(user);
-        navigate("/dashboard", { replace: true });
+        const res = login(user);
+        if (res.success) {
+          navigate("/dashboard", { replace: true });
+        } else {
+          setError(res.error);
+        }
       } else {
         setError("Invalid username or password. Please try again.");
       }
@@ -103,17 +104,32 @@ export default function Login() {
             <div className="text-xs text-slate-400 mb-2.5 flex items-center gap-1">
               <ShieldCheck className="w-3 h-3" /> Demo accounts — click to autofill
             </div>
-            <div className="space-y-2">
-              {DEMO_PILLS.map((p) => {
-                const rs = ROLE_STYLES[p.role];
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {users.map((p) => {
+                const rs = ROLE_STYLES[p.role] || ROLE_STYLES.Mentor;
+                const isInactive = p.status === "Inactive";
                 return (
-                  <button key={p.username} onClick={() => fillDemo(p)}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-100 hover:border-teal-200 hover:bg-teal-50/40 transition-all text-left group">
+                  <button
+                    key={p.id || p.username}
+                    onClick={() => fillDemo(p)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border transition-all text-left group ${
+                      isInactive
+                        ? "border-slate-100 bg-slate-50 opacity-60 hover:opacity-100"
+                        : "border-slate-100 hover:border-teal-200 hover:bg-teal-50/40"
+                    }`}
+                  >
                     <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 flex-shrink-0 group-hover:bg-teal-100">
                       {(p.name || p.username || "??").split(" ").map((n) => n[0]).join("").slice(0, 2)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-slate-700 truncate">{p.name || p.username}</div>
+                      <div className="text-xs font-medium text-slate-700 truncate flex items-center gap-1.5">
+                        {p.name || p.username}
+                        {isInactive && (
+                          <span className="text-[9px] px-1 py-0.2 bg-rose-50 text-rose-600 border border-rose-200 rounded">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-slate-400 font-mono">{p.username} / {p.password}</div>
                     </div>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold flex-shrink-0 ${rs.badge}`}>{p.role}</span>

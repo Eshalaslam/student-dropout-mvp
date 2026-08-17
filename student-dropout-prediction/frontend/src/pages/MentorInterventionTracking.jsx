@@ -378,10 +378,13 @@ export default function MentorInterventionTracking({ students: initialStudents, 
   // Detail drawer
   const [activeStudent, setActiveStudent] = useState(null);
 
+  const { users } = useAuth();
   const allMentors = useMemo(() => {
-    const names = ["Dr. Priya Nair", "James O'Connor", "Sarah Kim", "Unassigned"];
-    return ["All", ...names];
-  }, []);
+    const activeNames = users
+      .filter((u) => u.role === "Mentor" && u.status !== "Inactive")
+      .map((u) => u.name);
+    return ["All", ...activeNames, "Unassigned"];
+  }, [users]);
 
   // Computed KPIs
   const kpis = useMemo(() => {
@@ -596,7 +599,7 @@ export default function MentorInterventionTracking({ students: initialStudents, 
           onUpdateStatus={handleUpdateStatus}
           onUpdateMentor={handleUpdateMentor}
           onAddNote={handleAddNote}
-          mentors={["Dr. Priya Nair", "James O'Connor", "Sarah Kim", "Unassigned"]}
+          mentors={allMentors.filter((m) => m !== "All")}
           currentUser={currentUser}
         />
       )}

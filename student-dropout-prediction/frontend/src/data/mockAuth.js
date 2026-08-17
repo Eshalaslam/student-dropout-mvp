@@ -1,7 +1,6 @@
 // ─── User registry ────────────────────────────────────────────────────────────
-// Each entry is the single source of truth for identity + role.
-// `mentorName` must exactly match the `assigned_mentor` / `mentor_name` field
-// used in mockInterventions.js so the scoping filter works correctly.
+// Initial list of predefined users with identity, role, mentor ID, and status.
+// Used as the baseline seed for AuthContext (which maintains state during runtime).
 
 export const USERS = [
   {
@@ -11,7 +10,9 @@ export const USERS = [
     name: "Admin User",
     email: "admin@university.edu",
     role: "Admin",
-    mentorName: null, // Admins see everything — no scoping
+    mentorId: null,
+    mentorName: null,
+    status: "Active",
   },
   {
     id: "mentor1",
@@ -20,7 +21,9 @@ export const USERS = [
     name: "Dr. Priya Nair",
     email: "priya@university.edu",
     role: "Mentor",
+    mentorId: "M001",
     mentorName: "Dr. Priya Nair",
+    status: "Active",
   },
   {
     id: "mentor2",
@@ -29,7 +32,9 @@ export const USERS = [
     name: "James O'Connor",
     email: "james@university.edu",
     role: "Mentor",
+    mentorId: "M002",
     mentorName: "James O'Connor",
+    status: "Active",
   },
   {
     id: "mentor3",
@@ -38,17 +43,18 @@ export const USERS = [
     name: "Sarah Kim",
     email: "sarah@university.edu",
     role: "Mentor",
+    mentorId: "M003",
     mentorName: "Sarah Kim",
+    status: "Active",
   },
 ];
 
-// Legacy single-credential shim (keeps Login.jsx backwards-compatible during transition)
 export const DEMO_CREDENTIALS = { email: "admin@university.edu", password: "admin123" };
 export const DEMO_MENTOR = USERS[1]; // Dr. Priya Nair
 
 // Look up a user by username + password (case-insensitive username)
-export function authenticate(username, password) {
-  return USERS.find(
+export function authenticate(username, password, usersList = USERS) {
+  return usersList.find(
     (u) => u.username.toLowerCase() === username.toLowerCase().trim() && u.password === password
   ) || null;
 }
