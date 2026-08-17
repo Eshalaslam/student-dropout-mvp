@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   FileText, Download, Copy, Check, ChevronUp, ChevronDown,
   Search, Calendar, BarChart3, ClipboardList, ShieldAlert,
@@ -287,7 +287,7 @@ function ScheduledReports() {
 }
 
 // Main page export
-export default function Reports({ students }) {
+export default function Reports({ students, currentUser }) {
   const [reportType,setReportType] = useState("at-risk");
   const [deptFilter,setDeptFilter] = useState("All");
   const [riskFilter,setRiskFilter] = useState("All");
@@ -297,12 +297,13 @@ export default function Reports({ students }) {
   const [dateTo,setDateTo] = useState("");
   const [search,setSearch] = useState("");
   const [copied,setCopied] = useState(false);
+  const isAdmin = currentUser?.role === "Admin";
 
   const previewRows = useMemo(()=>{
     const base = students.filter((s)=>{
       const mD = deptFilter==="All"||s.department===deptFilter;
       const mR = riskFilter==="All"||s.risk_category===riskFilter;
-      const mM = mentorFilter==="All"||s.assigned_mentor===mentorFilter;
+      const mM = !isAdmin || mentorFilter==="All"||s.assigned_mentor===mentorFilter;
       const mS = statusFilter==="All"||s.intervention_status===statusFilter;
       const mSr= search===""||s.student_name.toLowerCase().includes(search.toLowerCase())||s.student_id.toLowerCase().includes(search.toLowerCase());
       const mDt= (()=>{if(!s.last_updated)return true;if(dateFrom&&s.last_updated<dateFrom)return false;if(dateTo&&s.last_updated>dateTo)return false;return true;})();
@@ -319,7 +320,7 @@ export default function Reports({ students }) {
       return Object.values(map).map((r)=>({...r,avgProb:r.probSum/r.total})).sort((a,b)=>b.avgProb-a.avgProb);
     }
     return base;
-  },[students,reportType,deptFilter,riskFilter,mentorFilter,statusFilter,search,dateFrom,dateTo]);
+  },[students,reportType,deptFilter,riskFilter,mentorFilter,statusFilter,search,dateFrom,dateTo,isAdmin]);
 
   const kpis = useMemo(()=>({
     total:students.length,
@@ -338,7 +339,7 @@ export default function Reports({ students }) {
     const txt=[
       `Report: ${label}`,
       `Generated: ${fmtLong(new Date().toISOString())}`,
-      `Filters: Dept=${deptFilter}, Risk=${riskFilter}, Mentor=${mentorFilter}`,
+      `Filters: Dept=${deptFilter}, Risk=${riskFilter}${isAdmin ? `, Mentor=${mentorFilter}` : ""}`,
       reportType==="dept-trend"?`Departments: ${previewRows.length}`:`Students: ${previewRows.length}`,
     ].join("\n");
     navigator.clipboard.writeText(txt).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
@@ -402,7 +403,7 @@ export default function Reports({ students }) {
             <select value={riskFilter} onChange={(e)=>setRiskFilter(e.target.value)} className={sl}>
               {RISK_BANDS.map((r)=><option key={r}>{r==="All"?"All Risks":r}</option>)}
             </select>
-            {(reportType==="intervention"||reportType==="at-risk")&&(
+            {isAdmin && (reportType==="intervention"||reportType==="at-risk") && (
               <select value={mentorFilter} onChange={(e)=>setMentorFilter(e.target.value)} className={sl}>
                 {ALL_MENTORS.map((m)=><option key={m}>{m==="All"?"All Mentors":m}</option>)}
               </select>

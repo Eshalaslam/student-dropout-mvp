@@ -39,7 +39,7 @@ function attendanceColor(pct) {
   return "bg-rose-500";
 }
 
-export default function StudentDetails({ student, onBack, onAddIntervention, onUpdateInterventionStatus }) {
+export default function StudentDetails({ student, onBack, onAddIntervention, onUpdateInterventionStatus, currentUser }) {
   const [tab, setTab] = useState("overview");
   const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({ type: "Counseling call", notes: "" });
@@ -57,7 +57,7 @@ export default function StudentDetails({ student, onBack, onAddIntervention, onU
       ...form,
       date: new Date().toISOString().slice(0, 10),
       status: "Open",
-      mentor_name: "You",
+      mentor_name: currentUser?.name || "Dr. Priya Nair",
     });
     setForm({ type: "Counseling call", notes: "" });
     setShowAddForm(false);

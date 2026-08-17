@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   Search,
   LayoutGrid,
@@ -60,9 +60,10 @@ function fmtTime(ts) {
 
 // ─── StudentDetailDrawer ────────────────────────────────────────────────────
 
-function StudentDetailDrawer({ student, onClose, onUpdateStatus, onAddNote, mentors }) {
+function StudentDetailDrawer({ student, onClose, onUpdateStatus, onUpdateMentor, onAddNote, mentors, currentUser }) {
   const [noteText, setNoteText] = useState("");
   const [selectedStatus, setSelectedStatus] = useState(student.intervention_status);
+  const isAdmin = currentUser?.role === "Admin";
 
   function handleStatusChange(s) {
     setSelectedStatus(s);
@@ -147,10 +148,22 @@ function StudentDetailDrawer({ student, onClose, onUpdateStatus, onAddNote, ment
               <label className="text-xs uppercase tracking-wide text-slate-400 mb-1 block">
                 Assigned Mentor
               </label>
-              <div className="flex items-center gap-2 text-sm text-slate-700">
-                <User className="w-3.5 h-3.5 text-slate-400" />
-                {student.assigned_mentor}
-              </div>
+              {isAdmin ? (
+                <select
+                  value={student.assigned_mentor}
+                  onChange={(e) => onUpdateMentor(student.student_id, e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400 font-medium"
+                >
+                  {mentors.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-slate-700">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  {student.assigned_mentor}
+                </div>
+              )}
             </div>
           </div>
 
@@ -225,7 +238,7 @@ function StudentDetailDrawer({ student, onClose, onUpdateStatus, onAddNote, ment
 
 // ─── KanbanCard ─────────────────────────────────────────────────────────────
 
-function KanbanCard({ student, onClick, onStatusChange }) {
+function KanbanCard({ student, onClick }) {
   return (
     <div
       onClick={onClick}
@@ -258,28 +271,31 @@ function KanbanCard({ student, onClick, onStatusChange }) {
 function KanbanColumn({ status, students, onCardClick, onStatusChange }) {
   const st = STATUS_STYLES[status];
   return (
-    <div className={`flex flex-col min-w-0 bg-slate-50 rounded-xl border border-slate-200 border-t-4 ${st.column}`}>
-      <div className="px-4 py-3 flex items-center justify-between border-b border-slate-200">
+    <div className={`bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex flex-col border-t-4 ${st.column}`}>
+      <div className="px-4 py-3 border-b border-slate-200/80 bg-white flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${st.dot}`} />
-          <span className="text-sm font-medium text-slate-700">{status}</span>
+          <h3 className="text-sm font-semibold text-slate-800">{status}</h3>
         </div>
-        <span className="text-xs bg-white border border-slate-200 text-slate-500 rounded-full px-2 py-0.5 font-mono">
+        <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
           {students.length}
         </span>
       </div>
-      <div className="flex-1 p-3 space-y-2.5 min-h-[120px]">
-        {students.length === 0 && (
-          <div className="text-xs text-slate-400 text-center py-6">No students here</div>
-        )}
-        {students.map((s) => (
+
+      <div className="p-3 space-y-2.5 flex-1 min-h-[260px] overflow-y-auto">
+        {students.map((student) => (
           <KanbanCard
-            key={s.student_id}
-            student={s}
-            onClick={() => onCardClick(s)}
-            onStatusChange={(status) => onStatusChange(s.student_id, status)}
+            key={student.student_id}
+            student={student}
+            onClick={() => onCardClick(student)}
+            onStatusChange={onStatusChange}
           />
         ))}
+        {students.length === 0 && (
+          <div className="h-full flex items-center justify-center py-10 text-xs text-slate-400">
+            No students
+          </div>
+        )}
       </div>
     </div>
   );
@@ -288,114 +304,69 @@ function KanbanColumn({ status, students, onCardClick, onStatusChange }) {
 // ─── TableView ──────────────────────────────────────────────────────────────
 
 function TableView({ students, onRowClick }) {
-  const [sortKey, setSortKey] = useState("student_name");
-  const [sortAsc, setSortAsc] = useState(true);
-
-  function handleSort(key) {
-    if (sortKey === key) setSortAsc(!sortAsc);
-    else { setSortKey(key); setSortAsc(true); }
-  }
-
-  const sorted = useMemo(() => {
-    return [...students].sort((a, b) => {
-      let va = a[sortKey], vb = b[sortKey];
-      if (typeof va === "string") va = va.toLowerCase();
-      if (typeof vb === "string") vb = vb.toLowerCase();
-      if (va < vb) return sortAsc ? -1 : 1;
-      if (va > vb) return sortAsc ? 1 : -1;
-      return 0;
-    });
-  }, [students, sortKey, sortAsc]);
-
-  function SortIcon({ col }) {
-    if (sortKey !== col) return <ChevronUp className="w-3 h-3 opacity-20" />;
-    return sortAsc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
-  }
-
-  function Th({ col, label, className = "" }) {
-    return (
-      <th
-        className={`px-4 py-3 font-medium text-left cursor-pointer select-none hover:text-slate-700 ${className}`}
-        onClick={() => handleSort(col)}
-      >
-        <div className="flex items-center gap-1">
-          {label}
-          <SortIcon col={col} />
-        </div>
-      </th>
-    );
-  }
-
   return (
-    <div className="border border-slate-200 rounded-md overflow-hidden bg-white">
-      <table className="w-full text-sm">
+    <div className="border border-slate-200 rounded-lg overflow-x-auto bg-white">
+      <table className="w-full text-sm min-w-[700px]">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
-            <Th col="student_name" label="Student" />
-            <Th col="risk_category" label="Risk Band" />
-            <Th col="intervention_status" label="Status" />
-            <Th col="assigned_mentor" label="Mentor" />
-            <Th col="last_updated" label="Last Updated" />
-            <Th col="mentor_notes" label="Notes" className="text-right" />
+            <th className="px-4 py-3 font-medium text-left">Student</th>
+            <th className="px-4 py-3 font-medium text-left">Risk</th>
+            <th className="px-4 py-3 font-medium text-left">Mentor</th>
+            <th className="px-4 py-3 font-medium text-left">Status</th>
+            <th className="px-4 py-3 font-medium text-left">Department</th>
+            <th className="px-4 py-3 font-medium text-left">Last Updated</th>
+            <th className="px-4 py-3 font-medium text-right">Notes</th>
           </tr>
         </thead>
         <tbody>
-          {sorted.map((s) => {
-            const isHigh = s.risk_category === "High";
-            return (
-              <tr
-                key={s.student_id}
-                onClick={() => onRowClick(s)}
-                className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors border-l-2 ${
-                  isHigh ? "border-l-rose-400 bg-rose-50/20" : "border-l-transparent"
-                }`}
-              >
-                <td className="px-4 py-3">
-                  <div className="font-medium text-slate-800">{s.student_name}</div>
-                  <div className="text-xs text-slate-400 font-mono">{s.student_id}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <RiskBadge level={s.risk_category} probability={s.dropout_probability} />
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={s.intervention_status} />
-                </td>
-                <td className="px-4 py-3 text-slate-600 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-slate-400" />
-                    {s.assigned_mentor}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-slate-500 text-xs font-mono">{fmt(s.last_updated)}</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-1 text-xs text-slate-400">
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    {s.mentor_notes.length}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
+          {students.map((s) => (
+            <tr
+              key={s.student_id}
+              onClick={() => onRowClick(s)}
+              className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
+            >
+              <td className="px-4 py-3">
+                <div className="font-medium text-slate-800">{s.student_name}</div>
+                <div className="text-xs text-slate-400 font-mono">{s.student_id}</div>
+              </td>
+              <td className="px-4 py-3">
+                <RiskBadge level={s.risk_category} probability={s.dropout_probability} />
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-600">{s.assigned_mentor}</td>
+              <td className="px-4 py-3">
+                <StatusBadge status={s.intervention_status} />
+              </td>
+              <td className="px-4 py-3 text-slate-500">{s.department}</td>
+              <td className="px-4 py-3 font-mono text-xs text-slate-400">{fmt(s.last_updated)}</td>
+              <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">
+                {s.mentor_notes.length}
+              </td>
+            </tr>
+          ))}
+          {students.length === 0 && (
+            <tr>
+              <td colSpan={7} className="py-10 text-center text-sm text-slate-400">
+                No students match the current filters.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
-      {sorted.length === 0 && (
-        <div className="py-12 text-center text-sm text-slate-400">No students match these filters.</div>
-      )}
     </div>
   );
 }
 
-// ─── MentorInterventionTracking (main page) ──────────────────────────────────
+// ─── MentorInterventionTracking (Main Component) ────────────────────────────
 
-export default function MentorInterventionTracking({ students: initialStudents }) {
-  // Local state mirrors the full student list; updated by status changes and note adds.
+export default function MentorInterventionTracking({ students: initialStudents, currentUser }) {
   const [students, setStudents] = useState(initialStudents);
+  const isAdmin = currentUser?.role === "Admin";
 
   // Filters
+  const [search, setSearch] = useState("");
   const [mentorFilter, setMentorFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [riskFilter, setRiskFilter] = useState("All");
-  const [search, setSearch] = useState("");
 
   // View toggle
   const [viewMode, setViewMode] = useState("kanban"); // "kanban" | "table"
@@ -404,9 +375,9 @@ export default function MentorInterventionTracking({ students: initialStudents }
   const [activeStudent, setActiveStudent] = useState(null);
 
   const allMentors = useMemo(() => {
-    const names = [...new Set(students.map((s) => s.assigned_mentor))];
+    const names = ["Dr. Priya Nair", "James O'Connor", "Sarah Kim", "Unassigned"];
     return ["All", ...names];
-  }, [students]);
+  }, []);
 
   // Computed KPIs
   const kpis = useMemo(() => {
@@ -448,7 +419,6 @@ export default function MentorInterventionTracking({ students: initialStudents }
           : s
       )
     );
-    // Keep drawer in sync
     setActiveStudent((prev) =>
       prev && prev.student_id === studentId
         ? { ...prev, intervention_status: newStatus, last_updated: new Date().toISOString().slice(0, 10) }
@@ -456,10 +426,25 @@ export default function MentorInterventionTracking({ students: initialStudents }
     );
   }
 
+  function handleUpdateMentor(studentId, newMentor) {
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.student_id === studentId
+          ? { ...s, assigned_mentor: newMentor, last_updated: new Date().toISOString().slice(0, 10) }
+          : s
+      )
+    );
+    setActiveStudent((prev) =>
+      prev && prev.student_id === studentId
+        ? { ...prev, assigned_mentor: newMentor, last_updated: new Date().toISOString().slice(0, 10) }
+        : prev
+    );
+  }
+
   function handleAddNote(studentId, text) {
     const newNote = {
       id: `note-${Date.now()}`,
-      author: "Dr. Priya Nair", // logged-in user placeholder
+      author: currentUser?.name || "Mentor",
       timestamp: new Date().toISOString(),
       text,
     };
@@ -476,7 +461,6 @@ export default function MentorInterventionTracking({ students: initialStudents }
   }
 
   function openDrawer(student) {
-    // Use live state version so notes/status are current
     const live = students.find((s) => s.student_id === student.student_id) || student;
     setActiveStudent(live);
   }
@@ -523,12 +507,14 @@ export default function MentorInterventionTracking({ students: initialStudents }
           />
         </div>
 
-        {/* mentor filter */}
-        <select value={mentorFilter} onChange={(e) => setMentorFilter(e.target.value)} className={selectClass}>
-          {allMentors.map((m) => (
-            <option key={m}>{m}</option>
-          ))}
-        </select>
+        {/* mentor filter only shown to Admin */}
+        {isAdmin && (
+          <select value={mentorFilter} onChange={(e) => setMentorFilter(e.target.value)} className={selectClass}>
+            {allMentors.map((m) => (
+              <option key={m}>{m}</option>
+            ))}
+          </select>
+        )}
 
         {/* status filter */}
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectClass}>
@@ -604,8 +590,10 @@ export default function MentorInterventionTracking({ students: initialStudents }
           student={activeStudent}
           onClose={() => setActiveStudent(null)}
           onUpdateStatus={handleUpdateStatus}
+          onUpdateMentor={handleUpdateMentor}
           onAddNote={handleAddNote}
-          mentors={allMentors.filter((m) => m !== "All")}
+          mentors={["Dr. Priya Nair", "James O'Connor", "Sarah Kim", "Unassigned"]}
+          currentUser={currentUser}
         />
       )}
     </div>
