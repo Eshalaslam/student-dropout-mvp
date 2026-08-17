@@ -1,0 +1,172 @@
+[
+  {
+    "row_index": 0,
+    "top_reasons": [
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": -0.5889
+      },
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": -0.5776
+      },
+      {
+        "feature": "scholarship_holder",
+        "impact": -0.3433
+      }
+    ]
+  },
+  {
+    "row_index": 1,
+    "top_reasons": [
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": 0.7426
+      },
+      {
+        "feature": "approval_rate_change",
+        "impact": 0.3925
+      },
+      {
+        "feature": "curricular_units_2nd_sem_without_evaluations",
+        "impact": -0.3552
+      }
+    ]
+  },
+  {
+    "row_index": 2,
+    "top_reasons": [
+      {
+        "feature": "age_at_enrollment",
+        "impact": 1.2482
+      },
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": 1.0726
+      },
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": 0.9407
+      }
+    ]
+  },
+  {
+    "row_index": 3,
+    "top_reasons": [
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": -1.2377
+      },
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": -0.9713
+      },
+      {
+        "feature": "curricular_units_2nd_sem_enrolled",
+        "impact": 0.3447
+      }
+    ]
+  },
+  {
+    "row_index": 4,
+    "top_reasons": [
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": 1.4027
+      },
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": 1.3231
+      },
+      {
+        "feature": "approval_ratio_sem2",
+        "impact": 0.5977
+      }
+    ]
+  },
+  {
+    "row_index": 5,
+    "top_reasons": [
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": -0.9713
+      },
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": -0.9076
+      },
+      {
+        "feature": "curricular_units_2nd_sem_enrolled",
+        "impact": 0.3447
+      }
+    ]
+  },
+  {
+    "row_index": 6,
+    "top_reasons": [
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": 1.4027
+      },
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": 1.3231
+      },
+      {
+        "feature": "approval_ratio_sem2",
+        "impact": 0.5977
+      }
+    ]
+  },
+  {
+    "row_index": 7,
+    "top_reasons": [
+      {
+        "feature": "course",
+        "impact": -2.0434
+      },
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": 1.7054
+      },
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": 1.4027
+      }
+    ]
+  },
+  {
+    "row_index": 8,
+    "top_reasons": [
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": -0.5889
+      },
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": -0.5776
+      },
+      {
+        "feature": "scholarship_holder",
+        "impact": -0.3433
+      }
+    ]
+  },
+  {
+    "row_index": 9,
+    "top_reasons": [
+      {
+        "feature": "curricular_units_1st_sem_approved",
+        "impact": 1.7054
+      },
+      {
+        "feature": "curricular_units_2nd_sem_approved",
+        "impact": 1.4027
+      },
+      {
+        "feature": "engagement_score",
+        "impact": 0.672
+      }
+    ]
+  }
+]
