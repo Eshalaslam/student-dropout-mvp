@@ -286,8 +286,12 @@ function ScheduledReports() {
   );
 }
 
+import { useAuth } from "../context/AuthContext";
+
 // Main page export
-export default function Reports({ students, currentUser }) {
+export default function Reports({ students, currentUser: propUser }) {
+  const { currentUser: authUser } = useAuth();
+  const currentUser = propUser || authUser;
   const [reportType,setReportType] = useState("at-risk");
   const [deptFilter,setDeptFilter] = useState("All");
   const [riskFilter,setRiskFilter] = useState("All");

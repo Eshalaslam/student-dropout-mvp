@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import KpiCard from "../components/KpiCard";
 import StudentTable from "../components/StudentTable";
 import SimTag from "../components/SimTag";
@@ -11,6 +12,8 @@ function pct(n, total) {
 }
 
 export default function Dashboard({ students, onSelect }) {
+  const navigate = useNavigate();
+  const handleSelect = onSelect || ((id) => navigate(`/students/${id}`));
   const total = students.length;
   const counts = { High: 0, Medium: 0, Low: 0 };
   students.forEach((s) => (counts[s.risk_category] = (counts[s.risk_category] || 0) + 1));
@@ -144,7 +147,7 @@ export default function Dashboard({ students, onSelect }) {
           <p className="text-xs text-slate-400 mt-0.5">Sorted by predicted dropout probability, highest first.</p>
         </div>
         {highRiskStudents.length > 0 ? (
-          <StudentTable students={highRiskStudents} onSelect={onSelect} />
+          <StudentTable students={highRiskStudents} onSelect={handleSelect} />
         ) : (
           <div className="border border-slate-200 rounded-md bg-white py-12 text-center text-sm text-slate-400">
             No high-risk students right now.

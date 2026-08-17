@@ -1,17 +1,20 @@
-﻿import { LayoutDashboard, Users, ClipboardList, GraduationCap, ChevronRight, ShieldAlert, FileBarChart } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { LayoutDashboard, Users, ClipboardList, GraduationCap, ChevronRight, ShieldAlert, FileBarChart } from "lucide-react";
 import { ROLE_STYLES } from "../utils/useRbac";
+import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
-  { id: "dashboard",     label: "Dashboard",            icon: LayoutDashboard, description: "Cohort overview",    section: "main"  },
-  { id: "list",          label: "Student List",          icon: Users,           description: "All students",       section: "main"  },
-  { id: "interventions", label: "Mentor Interventions",  icon: ClipboardList,   description: "Follow-up tracking", section: "main"  },
-  { id: "reports",       label: "Reports",               icon: FileBarChart,    description: "Generate & export",  section: "main"  },
-  { id: "audit",         label: "Bias & Privacy Audit",  icon: ShieldAlert,     description: "Fairness & compliance", section: "admin", adminOnly: true },
+  { path: "/dashboard",     label: "Dashboard",            icon: LayoutDashboard, description: "Cohort overview",    section: "main"  },
+  { path: "/students",      label: "Student List",          icon: Users,           description: "All students",       section: "main"  },
+  { path: "/interventions", label: "Mentor Interventions",  icon: ClipboardList,   description: "Follow-up tracking", section: "main"  },
+  { path: "/reports",       label: "Reports",               icon: FileBarChart,    description: "Generate & export",  section: "main"  },
+  { path: "/audit",         label: "Bias & Privacy Audit",  icon: ShieldAlert,     description: "Fairness & compliance", section: "admin", adminOnly: true },
 ];
 
 const SECTION_LABELS = { main: "Navigation", admin: "Admin" };
 
-export default function Sidebar({ active, onNavigate, currentUser }) {
+export default function Sidebar() {
+  const { currentUser } = useAuth();
   const role = currentUser?.role || "Mentor";
   const rs = ROLE_STYLES[role] || ROLE_STYLES.Mentor;
 
@@ -54,36 +57,40 @@ export default function Sidebar({ active, onNavigate, currentUser }) {
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = active === item.id;
                 const isAdmin = item.section === "admin";
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => onNavigate(item.id)}
-                    aria-current={isActive ? "page" : undefined}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all group ${
-                      isActive
-                        ? isAdmin
-                          ? "bg-violet-600/20 text-violet-400 ring-1 ring-violet-500/30"
-                          : "bg-teal-600/20 text-teal-400 ring-1 ring-teal-500/30"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-                    }`}
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all group ${
+                        isActive
+                          ? isAdmin
+                            ? "bg-violet-600/20 text-violet-400 ring-1 ring-violet-500/30"
+                            : "bg-teal-600/20 text-teal-400 ring-1 ring-teal-500/30"
+                          : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                      }`
+                    }
                   >
-                    <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                      isActive
-                        ? isAdmin ? "text-violet-400" : "text-teal-400"
-                        : "text-slate-500 group-hover:text-slate-300"
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-medium leading-tight truncate ${
-                        isActive ? (isAdmin ? "text-violet-300" : "text-teal-300") : ""
-                      }`}>{item.label}</div>
-                      <div className="text-[10px] text-slate-500 leading-tight mt-0.5 truncate">{item.description}</div>
-                    </div>
-                    {isActive && (
-                      <ChevronRight className={`w-3.5 h-3.5 flex-shrink-0 ${isAdmin ? "text-violet-500" : "text-teal-500"}`} />
+                    {({ isActive }) => (
+                      <>
+                        <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${
+                          isActive
+                            ? isAdmin ? "text-violet-400" : "text-teal-400"
+                            : "text-slate-500 group-hover:text-slate-300"
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-medium leading-tight truncate ${
+                            isActive ? (isAdmin ? "text-violet-300" : "text-teal-300") : ""
+                          }`}>{item.label}</div>
+                          <div className="text-[10px] text-slate-500 leading-tight mt-0.5 truncate">{item.description}</div>
+                        </div>
+                        {isActive && (
+                          <ChevronRight className={`w-3.5 h-3.5 flex-shrink-0 ${isAdmin ? "text-violet-500" : "text-teal-500"}`} />
+                        )}
+                      </>
                     )}
-                  </button>
+                  </NavLink>
                 );
               })}
             </div>

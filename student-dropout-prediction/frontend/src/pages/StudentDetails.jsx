@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { ArrowLeft, Plus, AlertTriangle } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Plus, AlertTriangle, Lock } from "lucide-react";
 import RiskBadge from "../components/RiskBadge";
 import StatusPill from "../components/StatusPill";
 import FactorBar from "../components/FactorBar";
 import SimTag from "../components/SimTag";
 import ProgressBar from "../components/ProgressBar";
+import DATA from "../data/mockStudents";
+import { useAuth } from "../context/AuthContext";
+import { getScopedStudents } from "../utils/useRbac";
 
 function Row({ label, value }) {
   return (
@@ -39,12 +43,52 @@ function attendanceColor(pct) {
   return "bg-rose-500";
 }
 
-export default function StudentDetails({ student, onBack, onAddIntervention, onUpdateInterventionStatus, currentUser }) {
+export default function StudentDetails({ students = DATA, onAddIntervention, onUpdateInterventionStatus }) {
+  const { studentId } = useParams();
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+
   const [tab, setTab] = useState("overview");
   const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({ type: "Counseling call", notes: "" });
 
-  if (!student) return null;
+  const student = students.find((s) => s.student_id === studentId);
+
+  if (!student) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <h2 className="text-base font-semibold text-slate-800 mb-1">Student Not Found</h2>
+        <p className="text-sm text-slate-500 mb-4">No student with ID "{studentId}" was found in the cohort.</p>
+        <button
+          onClick={() => navigate("/students")}
+          className="text-sm bg-teal-700 text-white px-4 py-2 rounded-md hover:bg-teal-800 transition-colors"
+        >
+          Back to Student List
+        </button>
+      </div>
+    );
+  }
+
+  // RBAC check: Mentors can only view assigned students
+  if (currentUser?.role === "Mentor" && !getScopedStudents(currentUser.role, currentUser.mentorName, [student]).length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3">
+          <Lock className="w-6 h-6 text-rose-600" />
+        </div>
+        <h2 className="text-base font-semibold text-slate-800 mb-1">Student Profile Restricted</h2>
+        <p className="text-sm text-slate-500 mb-4 max-w-xs">
+          You are only authorized to view and manage students assigned to your mentorship.
+        </p>
+        <button
+          onClick={() => navigate("/students")}
+          className="text-sm bg-teal-700 text-white px-4 py-2 rounded-md hover:bg-teal-800 transition-colors"
+        >
+          Back to Student List
+        </button>
+      </div>
+    );
+  }
 
   const tabs = [
     { id: "overview", label: "Overview" },
@@ -53,20 +97,22 @@ export default function StudentDetails({ student, onBack, onAddIntervention, onU
   ];
 
   function submitIntervention() {
-    onAddIntervention(student.student_id, {
-      ...form,
-      date: new Date().toISOString().slice(0, 10),
-      status: "Open",
-      mentor_name: currentUser?.name || "Dr. Priya Nair",
-    });
+    if (onAddIntervention) {
+      onAddIntervention(student.student_id, {
+        ...form,
+        date: new Date().toISOString().slice(0, 10),
+        status: "Open",
+        mentor_name: currentUser?.name || "Dr. Priya Nair",
+      });
+    }
     setForm({ type: "Counseling call", notes: "" });
     setShowAddForm(false);
   }
 
   return (
     <div className="space-y-5">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to student list
+      <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
+        <ArrowLeft className="w-3.5 h-3.5" /> Back to previous page
       </button>
 
       {/* Profile header */}

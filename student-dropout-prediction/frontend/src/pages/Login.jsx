@@ -1,12 +1,17 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Loader2, AlertCircle, ShieldCheck, User } from "lucide-react";
 import { USERS, authenticate } from "../data/mockAuth";
 import { ROLE_STYLES } from "../utils/useRbac";
+import { useAuth } from "../context/AuthContext";
 
 // Demo user pills — one click fills credentials for quick role-switching during testing.
 const DEMO_PILLS = USERS.map((u) => ({ name: u.name, username: u.username, password: u.password, role: u.role }));
 
-export default function Login({ onLogin }) {
+export default function Login() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +28,8 @@ export default function Login({ onLogin }) {
       const user = authenticate(username, password);
       setLoading(false);
       if (user) {
-        onLogin(user);
+        login(user);
+        navigate("/dashboard", { replace: true });
       } else {
         setError("Invalid username or password. Please try again.");
       }

@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search, SlidersHorizontal } from "lucide-react";
 import StudentTable from "../components/StudentTable";
 
-export default function StudentList({ students, onSelect }) {
+export default function StudentList({ students }) {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [riskFilter, setRiskFilter] = useState("All");
   const [deptFilter, setDeptFilter] = useState("All");
@@ -67,7 +69,7 @@ export default function StudentList({ students, onSelect }) {
         </button>
       </div>
 
-      <StudentTable students={filtered} onSelect={onSelect} />
+      <StudentTable students={filtered} onSelect={(id) => navigate(`/students/${id}`)} />
     </div>
   );
 }

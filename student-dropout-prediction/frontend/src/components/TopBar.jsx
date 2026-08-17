@@ -1,21 +1,41 @@
-﻿import { Bell, LogOut, ChevronDown } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Bell, LogOut, ChevronDown } from "lucide-react";
 import { ROLE_STYLES } from "../utils/useRbac";
+import { useAuth } from "../context/AuthContext";
 
 const PAGE_TITLES = {
-  dashboard:     { title: "Dashboard",                    subtitle: "Cohort overview and prioritized outreach" },
-  list:          { title: "Student List",                 subtitle: "Browse and filter all students" },
-  interventions: { title: "Mentor Intervention Tracking", subtitle: "Track follow-up actions for at-risk students" },
-  reports:       { title: "Reports",                      subtitle: "Generate and download filtered cohort reports" },
-  details:       { title: "Student Details",              subtitle: "Full profile and risk breakdown" },
-  audit:         { title: "Bias & Privacy Audit",         subtitle: "Model fairness metrics and data access log" },
+  "/dashboard":     { title: "Dashboard",                    subtitle: "Cohort overview and prioritized outreach" },
+  "/students":      { title: "Student List",                 subtitle: "Browse and filter all students" },
+  "/interventions": { title: "Mentor Intervention Tracking", subtitle: "Track follow-up actions for at-risk students" },
+  "/reports":       { title: "Reports",                      subtitle: "Generate and download filtered cohort reports" },
+  "/audit":         { title: "Bias & Privacy Audit",         subtitle: "Model fairness metrics and data access log" },
 };
 
-export default function TopBar({ view, onLogout, currentUser }) {
-  const { title, subtitle } = PAGE_TITLES[view] || PAGE_TITLES["dashboard"];
+export default function TopBar() {
+  const { currentUser, logout } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const pathname = location.pathname;
+  let pageInfo = PAGE_TITLES[pathname];
+  if (!pageInfo) {
+    if (pathname.startsWith("/students/")) {
+      pageInfo = { title: "Student Details", subtitle: "Full profile and risk breakdown" };
+    } else {
+      pageInfo = PAGE_TITLES["/dashboard"];
+    }
+  }
+
+  const { title, subtitle } = pageInfo;
   const role = currentUser?.role || "Mentor";
   const rs = ROLE_STYLES[role] || ROLE_STYLES.Mentor;
   const initials = (currentUser?.name || "??")
     .split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <header className="fixed top-0 left-56 right-0 h-14 bg-white border-b border-slate-200 flex items-center gap-4 px-6 z-10">
@@ -53,8 +73,11 @@ export default function TopBar({ view, onLogout, currentUser }) {
         </div>
 
         {/* Logout */}
-        <button onClick={onLogout} title="Log out"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-500 hover:text-rose-700 hover:bg-rose-50 transition-colors">
+        <button
+          onClick={handleLogout}
+          title="Log out"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+        >
           <LogOut className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Logout</span>
         </button>

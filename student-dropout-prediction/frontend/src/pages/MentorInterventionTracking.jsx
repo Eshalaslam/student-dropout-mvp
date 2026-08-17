@@ -358,7 +358,11 @@ function TableView({ students, onRowClick }) {
 
 // ─── MentorInterventionTracking (Main Component) ────────────────────────────
 
-export default function MentorInterventionTracking({ students: initialStudents, currentUser }) {
+import { useAuth } from "../context/AuthContext";
+
+export default function MentorInterventionTracking({ students: initialStudents, currentUser: propUser }) {
+  const { currentUser: authUser } = useAuth();
+  const currentUser = propUser || authUser;
   const [students, setStudents] = useState(initialStudents);
   const isAdmin = currentUser?.role === "Admin";
 
