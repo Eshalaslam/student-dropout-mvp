@@ -1,10 +1,10 @@
 # Data
 data/raw/*
 data/processed/*
-*.csv
+
 
 # Model artifacts
-*.pkl
+
 *.joblib
 
 # Notebook checkpoints
