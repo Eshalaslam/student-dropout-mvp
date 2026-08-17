@@ -2,10 +2,12 @@ import { Bell, LogOut, ChevronDown } from "lucide-react";
 import { DEMO_MENTOR } from "../data/mockAuth";
 
 const PAGE_TITLES = {
-  dashboard: { title: "Dashboard", subtitle: "Cohort overview and prioritized outreach" },
-  list: { title: "Student List", subtitle: "Browse and filter all students" },
+  dashboard:     { title: "Dashboard",                  subtitle: "Cohort overview and prioritized outreach" },
+  list:          { title: "Student List",               subtitle: "Browse and filter all students" },
   interventions: { title: "Mentor Intervention Tracking", subtitle: "Track follow-up actions for at-risk students" },
-  details: { title: "Student Details", subtitle: "Full profile and risk breakdown" },
+  reports:       { title: "Reports",                    subtitle: "Generate and download filtered cohort reports" },
+  details:       { title: "Student Details",            subtitle: "Full profile and risk breakdown" },
+  audit:         { title: "Bias & Privacy Audit",       subtitle: "Model fairness metrics and data access log" },
 };
 
 export default function TopBar({ view, onLogout }) {

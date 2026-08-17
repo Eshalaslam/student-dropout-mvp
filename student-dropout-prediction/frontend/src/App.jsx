@@ -6,6 +6,8 @@ import Dashboard from "./pages/Dashboard";
 import StudentList from "./pages/StudentList";
 import StudentDetails from "./pages/StudentDetails";
 import MentorInterventionTracking from "./pages/MentorInterventionTracking";
+import BiasPrivacyAudit from "./pages/BiasPrivacyAudit";
+import Reports from "./pages/Reports";
 import DATA from "./data/mockStudents";
 import { INTERVENTION_DATA } from "./data/mockInterventions";
 
@@ -15,7 +17,7 @@ import { INTERVENTION_DATA } from "./data/mockInterventions";
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [students, setStudents] = useState(DATA);
-  const [view, setView] = useState("dashboard"); // "dashboard" | "list" | "details" | "interventions"
+  const [view, setView] = useState("dashboard"); // "dashboard" | "list" | "details" | "interventions" | "reports" | "audit"
   const [returnView, setReturnView] = useState("dashboard"); // where "back" from details goes
   const [selectedId, setSelectedId] = useState(null);
 
@@ -79,6 +81,8 @@ export default function App() {
           {view === "dashboard" && <Dashboard students={students} onSelect={(id) => handleSelect(id, "dashboard")} />}
           {view === "list" && <StudentList students={students} onSelect={(id) => handleSelect(id, "list")} />}
           {view === "interventions" && <MentorInterventionTracking students={INTERVENTION_DATA} />}
+          {view === "reports" && <Reports students={INTERVENTION_DATA} />}
+          {view === "audit" && <BiasPrivacyAudit />}
           {view === "details" && (
             <StudentDetails
               student={selected}
