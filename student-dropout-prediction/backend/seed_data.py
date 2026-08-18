@@ -47,6 +47,27 @@ def seed_mentors():
     print("Seeding mentors...")
     mentors_data = [
         {
+            "username": "priya",
+            "password": "password",
+            "name": "Dr. Priya Nair",
+            "email": "priya@university.edu",
+            "mentor_id": "M001",
+        },
+        {
+            "username": "james",
+            "password": "password",
+            "name": "James O'Connor",
+            "email": "james@university.edu",
+            "mentor_id": "M002",
+        },
+        {
+            "username": "sarah",
+            "password": "password",
+            "name": "Sarah Kim",
+            "email": "sarah@university.edu",
+            "mentor_id": "M003",
+        },
+        {
             "username": "mentor_james",
             "password": "mentor123",
             "name": "Dr. James Wilson",

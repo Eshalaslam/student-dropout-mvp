@@ -5,7 +5,10 @@ Handles secure password hashing with bcrypt, JWT issuance and validation.
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
-import jwt
+try:
+    import jwt
+except ImportError:
+    from jose import jwt
 import bcrypt
 from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials

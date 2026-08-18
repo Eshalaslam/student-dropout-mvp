@@ -2,7 +2,8 @@
 Dashboard routes — aggregate statistics, risk distribution, department breakdown, etc.
 Computes risk dynamically from student features using the ML model.
 """
-from fastapi import APIRouter, Depends
+from typing import Optional, List
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from backend.app.db.supabase_client import db_service
 from backend.app.services.auth_service import get_current_user
 from backend.app.services.model_service import ModelService
@@ -147,3 +148,76 @@ def get_priority_outreach(current_user: dict = Depends(get_current_user)):
     high_risk = [s for s in students if s.get("risk_category") == "High"]
     high_risk.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
     return high_risk[:20]
+
+
+@router.get("/summary")
+def get_dashboard_summary(current_user: Optional[dict] = Depends(get_current_user)):
+    """Aggregate dashboard summary with counts, averages, and status."""
+    students = _compute_risk_for_all_students()
+    high = sum(1 for s in students if s.get("risk_category") == "High")
+    medium = sum(1 for s in students if s.get("risk_category") == "Medium")
+    low = sum(1 for s in students if s.get("risk_category") == "Low")
+    scores = [s.get("risk_score", 0.0) for s in students]
+    avg_score = round(sum(scores) / len(scores), 4) if scores else 0.0
+
+    all_interventions = db_service.get_interventions()
+    active_interventions = sum(
+        1 for i in all_interventions
+        if i.get("status") in ("Open", "In Progress")
+    )
+
+    return {
+        "total_students": len(students),
+        "high_risk_count": high,
+        "medium_risk_count": medium,
+        "low_risk_count": low,
+        "flagged_count": high,
+        "average_risk_score": avg_score,
+        "active_interventions": active_interventions,
+        "database_connected": db_service.is_supabase_connected,
+    }
+
+
+@router.get("/interventions")
+def get_dashboard_interventions(
+    student_id: Optional[str] = None,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """Fetch interventions with optional student filter."""
+    return db_service.get_interventions(student_id)
+
+
+@router.post("/interventions", status_code=201)
+def create_dashboard_intervention(
+    body: dict,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """Record an intervention from dashboard."""
+    mentor_name = body.get("mentor_name") or (current_user.get("name") if current_user else "Mentor")
+    assigned_mentor = body.get("assigned_mentor") or (current_user.get("mentorId") if current_user else None)
+    int_status = body.get("status", "Open")
+
+    record = {
+        "student_id": body.get("student_id"),
+        "mentor_name": mentor_name,
+        "type": body.get("type", "Academic Advising"),
+        "notes": body.get("notes", ""),
+        "status": int_status,
+        "intervention_status": int_status,
+        "assigned_mentor": assigned_mentor,
+    }
+    return db_service.create_intervention(record)
+
+
+@router.patch("/interventions/{intervention_id}")
+def update_dashboard_intervention(
+    intervention_id: str,
+    body: dict,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """Update intervention status or notes."""
+    updated = db_service.update_intervention(intervention_id, body)
+    if not updated:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Intervention not found")
+    return updated

@@ -91,6 +91,44 @@ ML_COLUMN_ORDER = [
 ]
 
 
+DEFAULT_FEATURE_VALUES = {
+    "marital_status": 1,
+    "application_mode": 1,
+    "application_order": 1,
+    "course": 9254,
+    "daytime/evening_attendance": 1,
+    "previous_qualification": 1,
+    "previous_qualification_grade": 130.0,
+    "mother's_qualification": 1,
+    "father's_qualification": 1,
+    "mother's_occupation": 5,
+    "father's_occupation": 5,
+    "admission_grade": 125.0,
+    "displaced": 0,
+    "educational_special_needs": 0,
+    "debtor": 0,
+    "tuition_fees_up_to_date": 1,
+    "gender": 1,
+    "scholarship_holder": 0,
+    "age_at_enrollment": 20,
+    "curricular_units_1st_sem_credited": 0,
+    "curricular_units_1st_sem_enrolled": 6,
+    "curricular_units_1st_sem_evaluations": 6,
+    "curricular_units_1st_sem_approved": 6,
+    "curricular_units_1st_sem_grade": 13.5,
+    "curricular_units_1st_sem_without_evaluations": 0,
+    "curricular_units_2nd_sem_credited": 0,
+    "curricular_units_2nd_sem_enrolled": 6,
+    "curricular_units_2nd_sem_evaluations": 6,
+    "curricular_units_2nd_sem_approved": 6,
+    "curricular_units_2nd_sem_grade": 14.0,
+    "curricular_units_2nd_sem_without_evaluations": 0,
+    "unemployment_rate": 10.8,
+    "inflation_rate": 1.4,
+    "gdp": 1.74,
+}
+
+
 def _safe_ratio(approved: float, enrolled: float) -> float:
     """approved / enrolled, returning 0.0 when enrolled is 0."""
     if enrolled == 0:
@@ -100,14 +138,14 @@ def _safe_ratio(approved: float, enrolled: float) -> float:
 
 def compute_engineered_features(row: dict) -> dict:
     """Compute the 5 engineered features from the raw input values."""
-    sem1_grade = row["curricular_units_1st_sem_grade"]
-    sem2_grade = row["curricular_units_2nd_sem_grade"]
-    sem1_approved = row["curricular_units_1st_sem_approved"]
-    sem1_enrolled = row["curricular_units_1st_sem_enrolled"]
-    sem2_approved = row["curricular_units_2nd_sem_approved"]
-    sem2_enrolled = row["curricular_units_2nd_sem_enrolled"]
-    sem1_evaluations = row["curricular_units_1st_sem_evaluations"]
-    sem2_evaluations = row["curricular_units_2nd_sem_evaluations"]
+    sem1_grade = float(row.get("curricular_units_1st_sem_grade", 13.5))
+    sem2_grade = float(row.get("curricular_units_2nd_sem_grade", 14.0))
+    sem1_approved = float(row.get("curricular_units_1st_sem_approved", 6))
+    sem1_enrolled = float(row.get("curricular_units_1st_sem_enrolled", 6))
+    sem2_approved = float(row.get("curricular_units_2nd_sem_approved", 6))
+    sem2_enrolled = float(row.get("curricular_units_2nd_sem_enrolled", 6))
+    sem1_evaluations = float(row.get("curricular_units_1st_sem_evaluations", 6))
+    sem2_evaluations = float(row.get("curricular_units_2nd_sem_evaluations", 6))
 
     ratio_sem1 = _safe_ratio(sem1_approved, sem1_enrolled)
     ratio_sem2 = _safe_ratio(sem2_approved, sem2_enrolled)
@@ -133,11 +171,18 @@ def convert_to_model_input(features: dict) -> pd.DataFrame:
 
     Steps:
     1. Map simplified names → ML column names
-    2. Compute the 5 engineered features
-    3. Concatenate and order all 39 columns
+    2. Fill any missing values with baseline defaults
+    3. Compute the 5 engineered features
+    4. Return in the exact column order the scaler expects
     """
-    # Step 1: rename raw features
-    mapped = {FEATURE_NAME_MAP[k]: v for k, v in features.items()}
+    mapped = dict(DEFAULT_FEATURE_VALUES)
+
+    # Step 1: rename and set provided features
+    for k, v in features.items():
+        if k in FEATURE_NAME_MAP:
+            mapped[FEATURE_NAME_MAP[k]] = v
+        elif k in DEFAULT_FEATURE_VALUES:
+            mapped[k] = v
 
     # Step 2: engineer derived features
     engineered = compute_engineered_features(mapped)

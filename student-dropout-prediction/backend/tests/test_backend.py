@@ -3,7 +3,10 @@ Automated unit & integration tests for Student Dropout Prediction API.
 Tests Authentication, Details Entry, ML Inference + SHAP Explainability,
 Supabase / DB Persistence, and Dashboard Metrics.
 """
-import pytest
+try:
+    import pytest
+except ImportError:
+    pytest = None
 from fastapi.testclient import TestClient
 from backend.app.main import app
 

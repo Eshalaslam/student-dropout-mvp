@@ -13,9 +13,11 @@ class LoginRequest(BaseModel):
 class User(BaseModel):
     id: str
     username: Optional[str] = None
-    name: str
+    name: Optional[str] = None
+    full_name: Optional[str] = None
+    student_id: Optional[str] = None
     email: str
-    role: str = Field(..., description="Role: Admin or Mentor")
+    role: str = Field("student", description="Role: Admin, Mentor, or Student")
     mentorId: Optional[str] = None
     mentorName: Optional[str] = None
     status: str = "Active"

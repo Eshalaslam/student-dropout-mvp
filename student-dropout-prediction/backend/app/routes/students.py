@@ -99,7 +99,7 @@ def list_students(
     search: Optional[str] = Query(None, description="Search by name or student ID"),
     risk_level: Optional[str] = Query(None, description="Filter by risk level: High, Medium, Low"),
     department: Optional[str] = Query(None, description="Filter by department"),
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_current_user),
 ):
     """List all students with optional search and filters. Mentors see only assigned students."""
     all_details = db_service.get_all_student_details()
@@ -111,7 +111,7 @@ def list_students(
         student_profiles.append(profile)
 
     # Mentor filter: only assigned students
-    role = current_user.get("role", "")
+    role = (current_user.get("role", "") if current_user else "")
     if role == "Mentor":
         mentor_id = current_user.get("mentorId") or current_user.get("mentor_id")
         if mentor_id:
@@ -146,13 +146,13 @@ def list_students(
 
 
 @router.get("/{student_id}")
-def get_student_detail(student_id: str, current_user: dict = Depends(get_current_user)):
+def get_student_detail(student_id: str, current_user: Optional[dict] = Depends(get_current_user)):
     """Get detailed student profile with risk factors and interventions."""
     details = db_service.get_student_details(student_id)
     profile = _compute_student_profile(student_id, details)
 
     # Mentor check: can only view assigned students
-    role = current_user.get("role", "")
+    role = (current_user.get("role", "") if current_user else "")
     if role == "Mentor":
         mentor_id = current_user.get("mentorId") or current_user.get("mentor_id")
         if mentor_id:
@@ -215,3 +215,118 @@ def update_student(
     )
 
     return {"message": "Student updated successfully", "student_id": student_id, "updates": updates}
+
+
+@router.post("/{student_id}/details")
+def save_student_details_endpoint(
+    student_id: str,
+    features: dict,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """Save or update raw dataset features for a student."""
+    saved = db_service.save_student_details(student_id, features)
+    return {"message": "Details saved successfully", "student_id": student_id, **saved}
+
+
+@router.get("/{student_id}/details")
+def get_student_details_endpoint(
+    student_id: str,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """Fetch raw stored dataset features for a student."""
+    details = db_service.get_student_details(student_id)
+    if not details:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No details found for student '{student_id}'.",
+        )
+    return details
+
+
+@router.get("/{student_id}/history")
+def get_student_prediction_history(
+    student_id: str,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """Retrieve historical prediction and risk assessments for a student."""
+    history = db_service.get_predictions_by_student(student_id)
+    return {
+        "student_id": student_id,
+        "total_records": len(history),
+        "history": history,
+    }
+
+
+@router.get("/{student_id}/analysis")
+def get_student_analysis_endpoint(
+    student_id: str,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """Get full ML prediction, SHAP reasons, and recommendations for a student."""
+    details = db_service.get_student_details(student_id)
+    if not details:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No features available to analyze student '{student_id}'.",
+        )
+
+    model_service = ModelService()
+    shap_service = ShapService()
+    from backend.app.services.recommendation_service import RecommendationService
+    rec_service = RecommendationService()
+
+    pred = model_service.predict(details)
+    reasons = shap_service.explain(details, top_n=5)
+    recommendations = rec_service.generate_recommendations(details, pred, reasons)
+
+    return {
+        "student_id": student_id,
+        "dropout_probability": pred["risk_score"],
+        "risk_category": pred["risk_band"].capitalize(),
+        "flagged": pred["flagged"],
+        "risk_factors": [r for r in reasons if r.get("category") == "risk"],
+        "protective_factors": [r for r in reasons if r.get("category") == "protective"],
+        "top_reasons": reasons,
+        "recommendations": recommendations,
+    }
+
+
+@router.post("/{student_id}/interventions", status_code=status.HTTP_201_CREATED)
+def create_student_intervention_endpoint(
+    student_id: str,
+    body: dict,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """Add a new intervention record for a student."""
+    mentor_name = body.get("mentor_name") or (current_user.get("name") if current_user else "Academic Mentor")
+    assigned_mentor = body.get("assigned_mentor") or (current_user.get("mentorId") if current_user else None)
+    int_status = body.get("status", "Open")
+
+    record = {
+        "student_id": student_id,
+        "mentor_name": mentor_name,
+        "type": body.get("type", "Academic Advising"),
+        "notes": body.get("notes", ""),
+        "status": int_status,
+        "intervention_status": int_status,
+        "assigned_mentor": assigned_mentor,
+    }
+    saved = db_service.create_intervention(record)
+
+    db_service.log_access(
+        user_name=(current_user.get("sub") or current_user.get("username") or "system") if current_user else "mentor",
+        role=(current_user.get("role") or "Mentor") if current_user else "Mentor",
+        action=f"Recorded intervention for {student_id} ({record['type']})",
+        student_id=student_id,
+    )
+
+    return saved
+
+
+@router.get("/{student_id}/interventions")
+def get_student_interventions_endpoint(
+    student_id: str,
+    current_user: Optional[dict] = Depends(get_current_user),
+):
+    """List all interventions recorded for a student."""
+    return db_service.get_interventions(student_id)

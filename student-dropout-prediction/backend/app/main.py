@@ -3,7 +3,7 @@ Main FastAPI entrypoint for Student Dropout Early-Warning System.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.routes import auth, dashboard, students, interventions, reports, audit, mentors
+from backend.app.routes import auth, dashboard, students, interventions, reports, audit, mentors, prediction
 from backend.app.db.supabase_client import db_service
 import logging
 
@@ -36,6 +36,8 @@ app.include_router(interventions.router, prefix="/api/interventions", tags=["Int
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(audit.router, prefix="/api/audit", tags=["Bias & Privacy Audit"])
 app.include_router(mentors.router, prefix="/api/mentors", tags=["Mentor Management"])
+app.include_router(prediction.router, prefix="/api/prediction", tags=["Prediction"])
+app.include_router(prediction.router, prefix="/api", tags=["Prediction"])
 
 
 @app.on_event("startup")

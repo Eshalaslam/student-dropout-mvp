@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import PublicRoute from "./components/PublicRoute";
@@ -17,10 +17,33 @@ import ManageMentors from "./pages/ManageMentors";
 import DATA from "./data/mockStudents";
 import { INTERVENTION_DATA } from "./data/mockInterventions";
 import { getScopedStudents } from "./utils/useRbac";
+import api from "./services/api";
 
 function AppRoutes() {
   const { currentUser } = useAuth();
   const [students, setStudents] = useState(DATA);
+  const [interventions, setInterventions] = useState(INTERVENTION_DATA);
+
+  // Fetch live student and intervention data when logged in
+  useEffect(() => {
+    if (currentUser) {
+      api.getStudents()
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setStudents(data);
+          }
+        })
+        .catch(() => {});
+
+      api.getInterventions()
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setInterventions(data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [currentUser]);
 
   // Scoped student cohort based on role and mentor assignment
   const scopedStudents = useMemo(
@@ -29,24 +52,26 @@ function AppRoutes() {
   );
 
   const scopedInterventions = useMemo(
-    () => getScopedStudents(currentUser?.role, currentUser?.mentorName, INTERVENTION_DATA),
-    [currentUser]
+    () => getScopedStudents(currentUser?.role, currentUser?.mentorName, interventions),
+    [currentUser, interventions]
   );
 
   function handleAddIntervention(id, intervention) {
     setStudents((prev) =>
-      prev.map((s) => (s.student_id === id ? { ...s, interventions: [...s.interventions, intervention] } : s))
+      prev.map((s) => (s.student_id === id ? { ...s, interventions: [...(s.interventions || []), intervention] } : s))
     );
+    api.addStudentIntervention(id, intervention).catch(() => {});
   }
 
   function handleUpdateInterventionStatus(id, index, status) {
     setStudents((prev) =>
       prev.map((s) =>
         s.student_id === id
-          ? { ...s, interventions: s.interventions.map((iv, i) => (i === index ? { ...iv, status } : iv)) }
+          ? { ...s, interventions: (s.interventions || []).map((iv, i) => (i === index ? { ...iv, status } : iv)) }
           : s
       )
     );
+    api.updateInterventionStatus(id, status).catch(() => {});
   }
 
   return (

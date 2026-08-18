@@ -4,7 +4,7 @@ Intervention routes — track and manage mentor interventions for at-risk studen
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import Optional
 from backend.app.db.supabase_client import db_service
-from backend.app.services.auth_service import get_current_user, require_auth, require_admin, require_mentor
+from backend.app.services.auth_service import require_auth, require_admin, require_mentor
 from backend.app.schemas.intervention import StatusUpdate, NoteCreate, ReassignRequest
 
 router = APIRouter()
@@ -104,7 +104,7 @@ def list_interventions(
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by intervention status"),
     mentor_id: Optional[str] = Query(None, description="Filter by assigned mentor ID"),
     risk_band: Optional[str] = Query(None, description="Filter by risk band: High, Medium, Low"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_auth),
 ):
     """List all students with intervention details. Mentors see only assigned students."""
     all_details = db_service.get_all_student_details()
@@ -141,8 +141,46 @@ def list_interventions(
     return profiles
 
 
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def create_intervention(
+    body: dict,
+    current_user: Optional[dict] = Depends(require_auth),
+):
+    """Create a new intervention record."""
+    student_id = body.get("student_id")
+    if not student_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="student_id is required",
+        )
+
+    mentor_name = body.get("mentor_name") or (current_user.get("name") if current_user else "Mentor")
+    assigned_mentor = body.get("assigned_mentor") or (current_user.get("mentorId") if current_user else None)
+    int_status = body.get("status", "Open")
+
+    record = {
+        "student_id": student_id,
+        "mentor_name": mentor_name,
+        "type": body.get("type", "Academic Advising"),
+        "notes": body.get("notes", ""),
+        "status": int_status,
+        "intervention_status": int_status,
+        "assigned_mentor": assigned_mentor,
+    }
+    saved = db_service.create_intervention(record)
+
+    db_service.log_access(
+        user_name=(current_user.get("sub") or current_user.get("username") or "system") if current_user else "mentor",
+        role=(current_user.get("role") or "Mentor") if current_user else "Mentor",
+        action=f"Recorded intervention for {student_id}",
+        student_id=student_id,
+    )
+
+    return saved
+
+
 @router.get("/{student_id}")
-def get_intervention_detail(student_id: str, current_user: dict = Depends(get_current_user)):
+def get_intervention_detail(student_id: str, current_user: dict = Depends(require_auth)):
     """Get intervention details for a specific student."""
     profile = _get_intervention_student_profile(student_id)
 

@@ -12,13 +12,18 @@ FALLBACK_DIR = os.path.join(os.path.dirname(__file__), "../../../../")
 
 
 def _resolve_model_path(filename: str) -> str:
-    primary = os.path.join(MODELS_DIR, filename)
-    if os.path.exists(primary):
-        return primary
-    fallback = os.path.join(FALLBACK_DIR, filename)
-    if os.path.exists(fallback):
-        return fallback
-    return primary
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "../../models", filename),
+        os.path.join(os.path.dirname(__file__), "../../../models", filename),
+        os.path.join(os.path.dirname(__file__), "../../../..", filename),
+        os.path.join(os.path.dirname(__file__), "../../..", filename),
+        os.path.join(os.getcwd(), filename),
+        os.path.join(os.getcwd(), "..", filename),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return candidates[0]
 
 
 class ModelService:
@@ -30,9 +35,18 @@ class ModelService:
 
     def __init__(self):
         if ModelService._model is None:
-            ModelService._model = joblib.load(_resolve_model_path("dropout_model.pkl"))
-            ModelService._scaler = joblib.load(_resolve_model_path("scaler.pkl"))
-            ModelService._threshold = float(joblib.load(_resolve_model_path("threshold.pkl")))
+            model_path = _resolve_model_path("dropout_model.pkl")
+            scaler_path = _resolve_model_path("scaler.pkl")
+            threshold_path = _resolve_model_path("threshold.pkl")
+
+            if os.path.exists(model_path):
+                ModelService._model = joblib.load(model_path)
+            if os.path.exists(scaler_path):
+                ModelService._scaler = joblib.load(scaler_path)
+            if os.path.exists(threshold_path):
+                ModelService._threshold = float(joblib.load(threshold_path))
+            else:
+                ModelService._threshold = 0.35
 
     def predict(self, features: dict) -> dict:
         """Run inference and return risk score, band, and flagged status."""

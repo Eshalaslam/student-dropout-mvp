@@ -14,27 +14,25 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (loading) return;
     if (!username.trim()) { setError("Username is required."); return; }
     if (!password) { setError("Password is required."); return; }
     setError("");
     setLoading(true);
-    setTimeout(() => {
-      const user = authenticate(username, password, users);
+    try {
+      const res = await login(username, password);
       setLoading(false);
-      if (user) {
-        const res = login(user);
-        if (res.success) {
-          navigate("/dashboard", { replace: true });
-        } else {
-          setError(res.error);
-        }
+      if (res?.success) {
+        navigate("/dashboard", { replace: true });
       } else {
-        setError("Invalid username or password. Please try again.");
+        setError(res?.error || "Invalid username or password. Please try again.");
       }
-    }, 600);
+    } catch (err) {
+      setLoading(false);
+      setError(err?.message || "Login failed. Please check your credentials.");
+    }
   }
 
   function fillDemo(u) {

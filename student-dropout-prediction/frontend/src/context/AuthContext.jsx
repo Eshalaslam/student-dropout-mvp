@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { USERS } from "../data/mockAuth";
+import { USERS, authenticate } from "../data/mockAuth";
+import api, { setToken, getToken, removeToken } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -23,6 +24,33 @@ export function AuthProvider({ children }) {
     }
   });
 
+  // Verify active session with backend if token exists
+  useEffect(() => {
+    const token = getToken();
+    if (token) {
+      api.getMe()
+        .then((me) => {
+          if (me) {
+            const formatted = {
+              id: me.id,
+              username: me.username || me.email,
+              name: me.name || me.full_name || me.username,
+              email: me.email,
+              role: me.role === "admin" ? "Admin" : me.role === "mentor" ? "Mentor" : (me.role || "Mentor"),
+              mentorId: me.mentorId,
+              mentorName: me.mentorName || me.name,
+              status: me.status || "Active",
+            };
+            setCurrentUser(formatted);
+            localStorage.setItem("dropout_auth_user", JSON.stringify(formatted));
+          }
+        })
+        .catch(() => {
+          // If offline, keep local user
+        });
+    }
+  }, []);
+
   // Sync users to localStorage
   useEffect(() => {
     try {
@@ -32,20 +60,77 @@ export function AuthProvider({ children }) {
     }
   }, [users]);
 
-  const login = (user) => {
-    if (user.status === "Inactive") {
+  const login = async (arg1, arg2) => {
+    let userObj = null;
+    let username = "";
+    let password = "";
+
+    if (typeof arg1 === "object" && arg1 !== null) {
+      userObj = arg1;
+      username = userObj.username;
+      password = userObj.password;
+    } else {
+      username = arg1;
+      password = arg2;
+    }
+
+    if (userObj && userObj.status === "Inactive") {
       return { success: false, error: "This account has been deactivated. Please contact an administrator." };
     }
-    setCurrentUser(user);
+
+    // Try live backend login first
     try {
-      localStorage.setItem("dropout_auth_user", JSON.stringify(user));
-    } catch (e) {
-      console.error("Failed to save auth to localStorage", e);
+      const data = await api.login(username, password);
+      if (data?.user) {
+        const u = data.user;
+        const normalizedUser = {
+          id: u.id,
+          username: u.username || u.email,
+          name: u.name || u.full_name,
+          email: u.email,
+          role: u.role === "admin" ? "Admin" : u.role === "mentor" ? "Mentor" : (u.role || "Mentor"),
+          mentorId: u.mentorId,
+          mentorName: u.mentorName || u.name,
+          status: u.status || "Active",
+        };
+        if (normalizedUser.status === "Inactive") {
+          removeToken();
+          return { success: false, error: "This account has been deactivated. Please contact an administrator." };
+        }
+        setCurrentUser(normalizedUser);
+        localStorage.setItem("dropout_auth_user", JSON.stringify(normalizedUser));
+        return { success: true, user: normalizedUser };
+      }
+    } catch (err) {
+      // Backend not running or error — fallback to local mock authentication
+      const localUser = userObj || authenticate(username, password, users);
+      if (localUser) {
+        if (localUser.status === "Inactive") {
+          return { success: false, error: "This account has been deactivated. Please contact an administrator." };
+        }
+        setCurrentUser(localUser);
+        localStorage.setItem("dropout_auth_user", JSON.stringify(localUser));
+        return { success: true, user: localUser };
+      }
+      return { success: false, error: err?.message || "Invalid username or password." };
     }
-    return { success: true };
+
+    // Fallback if not returned yet
+    const localUser = userObj || authenticate(username, password, users);
+    if (localUser) {
+      if (localUser.status === "Inactive") {
+        return { success: false, error: "This account has been deactivated. Please contact an administrator." };
+      }
+      setCurrentUser(localUser);
+      localStorage.setItem("dropout_auth_user", JSON.stringify(localUser));
+      return { success: true, user: localUser };
+    }
+
+    return { success: false, error: "Invalid username or password. Please try again." };
   };
 
   const logout = () => {
+    api.logout();
     setCurrentUser(null);
     try {
       localStorage.removeItem("dropout_auth_user");
