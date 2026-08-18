@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search,
   LayoutGrid,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import RiskBadge from "../components/RiskBadge";
 import KpiCard from "../components/KpiCard";
+import api from "../services/api";
 
 // ─── constants ──────────────────────────────────────────────────────────────
 
@@ -378,13 +379,22 @@ export default function MentorInterventionTracking({ students: initialStudents, 
   // Detail drawer
   const [activeStudent, setActiveStudent] = useState(null);
 
-  const { users } = useAuth();
+  // Fetch mentors from DB
+  const [dbMentors, setDbMentors] = useState([]);
+  useEffect(() => {
+    api.getMentors()
+      .then((data) => {
+        if (Array.isArray(data)) setDbMentors(data);
+      })
+      .catch(() => {});
+  }, []);
+
   const allMentors = useMemo(() => {
-    const activeNames = users
-      .filter((u) => u.role === "Mentor" && u.status !== "Inactive")
-      .map((u) => u.name);
-    return ["All", ...activeNames, "Unassigned"];
-  }, [users]);
+    const names = dbMentors
+      .filter((m) => m.status !== "Inactive")
+      .map((m) => m.name);
+    return ["All", ...names, "Unassigned"];
+  }, [dbMentors]);
 
   // Computed KPIs
   const kpis = useMemo(() => {
@@ -431,9 +441,13 @@ export default function MentorInterventionTracking({ students: initialStudents, 
         ? { ...prev, intervention_status: newStatus, last_updated: new Date().toISOString().slice(0, 10) }
         : prev
     );
+    api.updateInterventionStatus(studentId, newStatus).catch(() => {});
   }
 
   function handleUpdateMentor(studentId, newMentor) {
+    const mentorObj = dbMentors.find((m) => m.name === newMentor);
+    const currentStudent = students.find((s) => s.student_id === studentId);
+    const mentorId = mentorObj?.mentorId || currentStudent?.assigned_mentor_id || newMentor;
     setStudents((prev) =>
       prev.map((s) =>
         s.student_id === studentId
@@ -446,12 +460,14 @@ export default function MentorInterventionTracking({ students: initialStudents, 
         ? { ...prev, assigned_mentor: newMentor, last_updated: new Date().toISOString().slice(0, 10) }
         : prev
     );
+    api.reassignMentor(studentId, mentorId).catch(() => {});
   }
 
   function handleAddNote(studentId, text) {
+    const authorName = currentUser?.name || "Mentor";
     const newNote = {
       id: `note-${Date.now()}`,
-      author: currentUser?.name || "Mentor",
+      author: authorName,
       timestamp: new Date().toISOString(),
       text,
     };
@@ -465,6 +481,7 @@ export default function MentorInterventionTracking({ students: initialStudents, 
         ? { ...prev, mentor_notes: [...prev.mentor_notes, newNote] }
         : prev
     );
+    api.addInterventionNote(studentId, authorName, text).catch(() => {});
   }
 
   function openDrawer(student) {

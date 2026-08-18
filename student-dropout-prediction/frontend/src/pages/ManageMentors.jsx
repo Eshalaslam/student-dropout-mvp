@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   UserPlus,
   Search,
@@ -16,8 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import KpiCard from "../components/KpiCard";
-import { useAuth } from "../context/AuthContext";
-import { INTERVENTION_DATA } from "../data/mockInterventions";
+import api from "../services/api";
 
 // Helper for generating secure temporary passwords
 function generateTempPassword() {
@@ -29,8 +28,27 @@ function generateTempPassword() {
   return pass;
 }
 
-export default function ManageMentors({ students = INTERVENTION_DATA }) {
-  const { users, addMentor, updateMentor, toggleMentorStatus, getNextMentorId } = useAuth();
+export default function ManageMentors() {
+  // Fetch mentors from DB
+  const [dbMentors, setDbMentors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  function refreshMentors() {
+    setLoading(true);
+    setLoadError("");
+    api.getMentors()
+      .then((data) => {
+        if (Array.isArray(data)) setDbMentors(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load mentors:", err);
+        setLoadError(err?.message || "Failed to load mentors. Please try again.");
+      })
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { refreshMentors(); }, []);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -41,6 +59,7 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
   const [deactivateTarget, setDeactivateTarget] = useState(null);
   const [createdCredentials, setCreatedCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [editError, setEditError] = useState("");
 
   // Add Form State
   const [addForm, setAddForm] = useState({
@@ -52,20 +71,8 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
   });
   const [formError, setFormError] = useState("");
 
-  // Filter only Mentor accounts
-  const mentors = useMemo(() => {
-    return users.filter((u) => u.role === "Mentor");
-  }, [users]);
-
-  // Compute number of assigned students per mentor
-  const assignedCounts = useMemo(() => {
-    const counts = {};
-    students.forEach((s) => {
-      const m = s.assigned_mentor;
-      if (m) counts[m] = (counts[m] || 0) + 1;
-    });
-    return counts;
-  }, [students]);
+  // Use DB mentors
+  const mentors = dbMentors;
 
   // Filtered mentors list
   const filteredMentors = useMemo(() => {
@@ -85,18 +92,17 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
     const total = mentors.length;
     const active = mentors.filter((m) => m.status === "Active").length;
     const inactive = total - active;
-    const totalAssigned = Object.values(assignedCounts).reduce((a, b) => a + b, 0);
+    const totalAssigned = mentors.reduce((a, m) => a + (m.assigned_students_count || 0), 0);
     return { total, active, inactive, totalAssigned };
-  }, [mentors, assignedCounts]);
+  }, [mentors]);
 
   // Open Add Modal
   function handleOpenAdd() {
-    const nextId = getNextMentorId();
     setAddForm({
       name: "",
       username: "",
       password: generateTempPassword(),
-      mentorId: nextId,
+      mentorId: "",
       email: "",
     });
     setFormError("");
@@ -132,19 +138,24 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
       return;
     }
 
-    const res = addMentor(addForm);
-    if (!res.success) {
-      setFormError(res.error);
-      return;
-    }
-
-    setCreatedCredentials({
+    api.createMentor({
       name: addForm.name.trim(),
       username: addForm.username.trim().toLowerCase(),
       password: addForm.password,
       mentorId: addForm.mentorId,
+      email: addForm.email,
+    }).then(() => {
+      setCreatedCredentials({
+        name: addForm.name.trim(),
+        username: addForm.username.trim().toLowerCase(),
+        password: addForm.password,
+        mentorId: addForm.mentorId,
+      });
+      setShowAddModal(false);
+      refreshMentors();
+    }).catch((err) => {
+      setFormError(err?.message || "Failed to create mentor.");
     });
-    setShowAddModal(false);
   }
 
   // Copy created credentials
@@ -161,18 +172,28 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
   function handleEditSubmit(e) {
     e.preventDefault();
     if (!editMentor.name.trim()) return;
-    updateMentor(editMentor.id, {
+    setEditError("");
+    api.updateMentor(editMentor.mentorId, {
       name: editMentor.name,
       email: editMentor.email,
+    }).then(() => {
+      setEditMentor(null);
+      setEditError("");
+      refreshMentors();
+    }).catch((err) => {
+      setEditError(err?.message || "Failed to update mentor.");
     });
-    setEditMentor(null);
   }
 
   // Confirm Deactivation / Reactivation
   function handleConfirmDeactivate() {
     if (!deactivateTarget) return;
-    toggleMentorStatus(deactivateTarget.id);
-    setDeactivateTarget(null);
+    api.toggleMentorStatus(deactivateTarget.mentorId).then(() => {
+      setDeactivateTarget(null);
+      refreshMentors();
+    }).catch((err) => {
+      console.error("Failed to toggle mentor status:", err);
+    });
   }
 
   return (
@@ -196,6 +217,25 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
           <UserPlus className="w-4 h-4" /> Add Mentor
         </button>
       </div>
+
+      {/* Error banner */}
+      {loadError && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-rose-800">{loadError}</p>
+              <p className="text-xs text-rose-600 mt-0.5">You may need to log in again.</p>
+            </div>
+          </div>
+          <button
+            onClick={refreshMentors}
+            className="px-3 py-1.5 text-xs font-medium text-rose-700 bg-white border border-rose-300 rounded-md hover:bg-rose-50 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Success banner after mentor creation */}
       {createdCredentials && (
@@ -289,7 +329,7 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
             </thead>
             <tbody>
               {filteredMentors.map((m) => {
-                const assignedCount = assignedCounts[m.name] || 0;
+                const assignedCount = m.assigned_students_count || 0;
                 const isActive = m.status === "Active";
                 const initials = m.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
@@ -338,7 +378,7 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => setEditMentor({ ...m })}
+                          onClick={() => { setEditError(""); setEditMentor({ ...m }); }}
                           className="flex items-center gap-1 text-xs text-slate-600 hover:text-teal-700 font-medium px-2 py-1 rounded hover:bg-slate-100 transition-colors"
                         >
                           <Edit2 className="w-3.5 h-3.5" /> Edit
@@ -535,6 +575,12 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
             </div>
 
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              {editError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Mentor ID (Locked)</label>
@@ -617,7 +663,7 @@ export default function ManageMentors({ students = INTERVENTION_DATA }) {
               {deactivateTarget.status === "Active" ? (
                 <>
                   This mentor has{" "}
-                  <strong>{assignedCounts[deactivateTarget.name] || 0} assigned student(s)</strong>.
+                  <strong>{deactivateTarget.assigned_students_count || 0} assigned student(s)</strong>.
                   Deactivating will prevent login access but will preserve historical intervention notes and student assignments.
                 </>
               ) : (

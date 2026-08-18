@@ -97,6 +97,10 @@ export const api = {
     return request("/auth/logout", { method: "POST" }).catch(() => ({}));
   },
 
+  async getAccounts() {
+    return await request("/auth/accounts");
+  },
+
   // ─── STUDENTS ──────────────────────────────────────────────────────────────
   async getStudents(params = {}) {
     const query = new URLSearchParams();
@@ -215,11 +219,11 @@ export const api = {
 
   // ─── MENTORS (ADMIN) ───────────────────────────────────────────────────────
   async getMentors() {
-    return await request("/mentors");
+    return await request("/mentors/");
   },
 
   async createMentor(mentorData) {
-    return await request("/mentors", {
+    return await request("/mentors/", {
       method: "POST",
       body: JSON.stringify(mentorData),
     });

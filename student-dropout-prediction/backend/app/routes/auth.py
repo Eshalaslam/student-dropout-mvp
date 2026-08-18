@@ -9,6 +9,36 @@ from backend.app.db.supabase_client import db_service
 router = APIRouter()
 
 
+@router.get("/accounts")
+def list_accounts():
+    """Public endpoint: return available login accounts (no passwords) for the login page."""
+    accounts = []
+    users = db_service.get_all_users()
+    for u in users:
+        if u.get("status") == "Inactive":
+            continue
+        role = (u.get("role") or "student").lower()
+        if role in ("admin", "mentor"):
+            accounts.append({
+                "username": u.get("username"),
+                "name": u.get("full_name") or u.get("name", ""),
+                "role": "Admin" if role == "admin" else "Mentor",
+            })
+    mentors = db_service.get_all_mentors()
+    existing_usernames = {a["username"] for a in accounts}
+    for m in mentors:
+        if m.get("username") in existing_usernames:
+            continue
+        if m.get("status") == "Inactive":
+            continue
+        accounts.append({
+            "username": m.get("username"),
+            "name": m.get("name", ""),
+            "role": "Mentor",
+        })
+    return accounts
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(payload: dict):
     """Register a new user (student or mentor)."""
@@ -79,6 +109,7 @@ def login(payload: dict):
         )
 
     token = AuthService.create_access_token(user)
+    role = (user.get("role") or "student").lower()
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -89,7 +120,7 @@ def login(payload: dict):
             "full_name": user.get("full_name") or user.get("name", ""),
             "student_id": user.get("student_id"),
             "email": user.get("email", ""),
-            "role": user.get("role", "student"),
+            "role": "Admin" if role == "admin" else "Mentor" if role == "mentor" else role,
             "mentorId": user.get("mentor_id"),
             "mentorName": user.get("mentor_name"),
             "status": user.get("status", "Active"),
@@ -118,23 +149,25 @@ def get_me(current_user: dict = Depends(get_current_user)):
         user = db_service.get_user_by_email(username)
 
     if not user:
+        role = (current_user.get("role") or "student").lower()
         return {
             "id": current_user.get("id", ""),
             "username": username,
             "name": current_user.get("name", ""),
             "email": username,
-            "role": current_user.get("role", "student"),
+            "role": "Admin" if role == "admin" else "Mentor" if role == "mentor" else role,
             "mentorId": current_user.get("mentorId"),
             "mentorName": current_user.get("mentorName"),
             "status": current_user.get("status", "Active"),
         }
 
+    role = (user.get("role") or "student").lower()
     return {
         "id": user.get("id", ""),
         "username": user.get("username"),
         "name": user.get("full_name") or user.get("name", ""),
         "email": user.get("email", ""),
-        "role": user.get("role", "student"),
+        "role": "Admin" if role == "admin" else "Mentor" if role == "mentor" else role,
         "mentorId": user.get("mentor_id"),
         "mentorName": user.get("mentor_name"),
         "status": user.get("status", "Active"),

@@ -18,6 +18,7 @@ def _get_intervention_student_profile(student_id: str) -> dict:
 
     intervention_status = "Not Started"
     assigned_mentor = None
+    assigned_mentor_id = None
     last_updated = None
 
     # Get the latest intervention for this student
@@ -25,7 +26,8 @@ def _get_intervention_student_profile(student_id: str) -> dict:
     if interventions:
         latest = interventions[0]  # Already sorted newest first
         intervention_status = latest.get("intervention_status", latest.get("status", "Not Started"))
-        assigned_mentor = latest.get("assigned_mentor") or latest.get("mentor_name")
+        assigned_mentor_id = latest.get("assigned_mentor")
+        assigned_mentor = latest.get("mentor_name") or latest.get("assigned_mentor")
         last_updated = latest.get("last_updated") or latest.get("updated_at")
 
     # Compute risk
@@ -91,6 +93,7 @@ def _get_intervention_student_profile(student_id: str) -> dict:
         "risk_category": risk_category,
         "intervention_status": intervention_status,
         "assigned_mentor": assigned_mentor,
+        "assigned_mentor_id": assigned_mentor_id,
         "last_updated": last_updated,
         "mentor_notes": mentor_notes,
         "attendance_percentage": attendance_percentage,
