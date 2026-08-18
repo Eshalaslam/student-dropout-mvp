@@ -84,6 +84,42 @@ class StudentDetailsResponse(BaseModel):
     updated_at: Optional[str] = None
 
 
+class RiskFactor(BaseModel):
+    factor: str
+    tier: str = Field(..., description="major, moderate, or minor")
+    direction: str = Field(..., description="risk or protective")
+
+
+class InterventionItem(BaseModel):
+    type: str
+    date: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = "Open"  # Open, In Progress, Resolved
+    mentor_name: Optional[str] = None
+
+
+class Student(BaseModel):
+    student_id: str
+    student_name: str
+    department: Optional[str] = None
+    semester: Optional[int] = None
+    admission_grade: Optional[float] = None
+    age_at_enrollment: Optional[int] = None
+    scholarship_holder: Optional[int] = None
+    tuition_fees_up_to_date: Optional[int] = None
+    curricular_units_1st_sem_enrolled: Optional[int] = None
+    curricular_units_1st_sem_approved: Optional[int] = None
+    curricular_units_2nd_sem_enrolled: Optional[int] = None
+    curricular_units_2nd_sem_approved: Optional[int] = None
+    curricular_units_failed: Optional[int] = None
+    approval_rate: Optional[float] = None
+    attendance_percentage: Optional[float] = None
+    dropout_probability: Optional[float] = None
+    risk_category: str = "Low"  # High, Medium, Low
+    risk_factors: List[RiskFactor] = []
+    interventions: List[InterventionItem] = []
+
+
 class InterventionCreate(BaseModel):
     student_id: str
     mentor_name: Optional[str] = "Academic Mentor"

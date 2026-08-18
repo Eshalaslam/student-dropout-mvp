@@ -5,16 +5,40 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 
+class LoginRequest(BaseModel):
+    username: str = Field(..., description="Username for authentication")
+    password: str = Field(..., description="Password")
+
+
+class User(BaseModel):
+    id: str
+    username: Optional[str] = None
+    name: str
+    email: str
+    role: str = Field(..., description="Role: Admin or Mentor")
+    mentorId: Optional[str] = None
+    mentorName: Optional[str] = None
+    status: str = "Active"
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: User
+
+
+# Backward-compatible aliases for existing code
 class UserRegister(BaseModel):
-    email: str = Field(..., description="Student or staff email address")
+    email: str = Field(..., description="Email address")
     password: str = Field(..., min_length=4, description="User password")
     full_name: str = Field(..., description="Full display name")
-    student_id: Optional[str] = Field(None, description="Unique student ID code (e.g. STU10432)")
-    role: str = Field("student", description="Role: 'student' or 'mentor'")
+    username: Optional[str] = Field(None, description="Username")
+    student_id: Optional[str] = Field(None, description="Student ID")
+    role: str = Field("student", description="Role")
 
 
 class UserLogin(BaseModel):
-    email_or_student_id: str = Field(..., description="Email address or student ID")
+    email_or_student_id: str = Field(..., description="Email or student ID")
     password: str = Field(..., description="User password")
 
 

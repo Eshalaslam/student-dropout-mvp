@@ -1,72 +1,74 @@
 """
-Authentication routes for student and mentor registration/login.
+Authentication routes — login, logout, current user profile.
 """
 from fastapi import APIRouter, HTTPException, Depends, status
-from typing import Optional
-from backend.app.schemas.auth import UserRegister, UserLogin, UserResponse, TokenResponse
+from backend.app.schemas.auth import LoginRequest, LoginResponse, User
 from backend.app.services.auth_service import AuthService, get_current_user
 from backend.app.db.supabase_client import db_service
 
 router = APIRouter()
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: UserRegister):
-    """Register a new student or academic mentor."""
-    user = AuthService.register_user(payload.model_dump())
+@router.post("/login", response_model=LoginResponse)
+def login(payload: LoginRequest):
+    """Authenticate with username + password, returns JWT token + user profile."""
+    user = AuthService.authenticate_user(payload.username, payload.password)
     token = AuthService.create_access_token(user)
     return {
         "access_token": token,
         "token_type": "bearer",
         "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "full_name": user["full_name"],
-            "student_id": user.get("student_id"),
-            "role": user["role"],
-            "created_at": user.get("created_at")
-        }
+            "id": user.get("id", ""),
+            "username": user.get("username"),
+            "name": user.get("full_name") or user.get("name", ""),
+            "email": user.get("email", ""),
+            "role": user.get("role", "student"),
+            "mentorId": user.get("mentor_id"),
+            "mentorName": user.get("mentor_name"),
+            "status": user.get("status", "Active"),
+        },
     }
 
 
-@router.post("/login", response_model=TokenResponse)
-def login(payload: UserLogin):
-    """Log in as a student or mentor using email/student_id and password."""
-    user = AuthService.authenticate_user(payload.email_or_student_id, payload.password)
-    token = AuthService.create_access_token(user)
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "full_name": user["full_name"],
-            "student_id": user.get("student_id"),
-            "role": user["role"],
-            "created_at": user.get("created_at")
-        }
-    }
+@router.post("/logout")
+def logout():
+    """Logout — JWT is stateless; client discards the token."""
+    return {"message": "Successfully logged out"}
 
 
-@router.get("/me", response_model=UserResponse)
-def get_current_user_profile(current_user: Optional[dict] = Depends(get_current_user)):
-    """Get the currently logged-in user profile."""
+@router.get("/me")
+def get_me(current_user: dict = Depends(get_current_user)):
+    """Get the currently authenticated user's profile."""
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated. Provide Authorization: Bearer <token>"
+            detail="Not authenticated. Provide Authorization: Bearer <token>",
         )
-    user = db_service.get_user_by_email(current_user["sub"])
+
+    username = current_user.get("sub", "")
+    user = db_service.get_user_by_username(username)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User record not found."
-        )
+        user = db_service.get_user_by_email(username)
+
+    if not user:
+        return {
+            "id": current_user.get("id", ""),
+            "username": username,
+            "name": current_user.get("name", ""),
+            "email": username,
+            "role": current_user.get("role", "student"),
+            "mentorId": current_user.get("mentorId"),
+            "mentorName": current_user.get("mentorName"),
+            "status": current_user.get("status", "Active"),
+        }
+
     return {
-        "id": user["id"],
-        "email": user["email"],
-        "full_name": user["full_name"],
-        "student_id": user.get("student_id"),
-        "role": user["role"],
-        "created_at": user.get("created_at")
+        "id": user.get("id", ""),
+        "username": user.get("username"),
+        "name": user.get("full_name") or user.get("name", ""),
+        "email": user.get("email", ""),
+        "role": user.get("role", "student"),
+        "mentorId": user.get("mentor_id"),
+        "mentorName": user.get("mentor_name"),
+        "status": user.get("status", "Active"),
     }
