@@ -142,3 +142,55 @@ class InterventionResponse(BaseModel):
     status: str
     created_at: str
     updated_at: Optional[str] = None
+
+
+class StudentCreateRequest(BaseModel):
+    """Schema for admin creating a new student."""
+    # Identity
+    full_name: str = Field(..., description="Student's full name")
+    email: str = Field(..., description="Student's email address")
+    student_id: Optional[str] = Field(None, description="Student ID (auto-generated if blank)")
+    password: Optional[str] = Field("student123", description="Initial password (default: student123)")
+    username: Optional[str] = Field(None, description="Username (defaults to student_id)")
+    mentor_id: Optional[str] = Field(None, description="Initial mentor ID to assign")
+
+    # Optional metadata
+    department: Optional[str] = Field(None, description="Department / faculty name")
+    semester: Optional[int] = Field(1, description="Current semester (1-8)")
+    attendance_percentage: Optional[float] = Field(None, description="Attendance % (0-100)")
+
+    # Dataset features (with sensible defaults)
+    marital_status: int = Field(1)
+    application_mode: int = Field(1)
+    application_order: int = Field(1)
+    course: int = Field(9254)
+    daytime_attendance: int = Field(1)
+    age_at_enrollment: int = Field(20)
+    previous_qualification: int = Field(1)
+    previous_qualification_grade: float = Field(130.0)
+    mothers_qualification: int = Field(1)
+    fathers_qualification: int = Field(1)
+    mothers_occupation: int = Field(5)
+    fathers_occupation: int = Field(5)
+    admission_grade: float = Field(125.0)
+    displaced: int = Field(0)
+    special_needs: int = Field(0)
+    debtor: int = Field(0)
+    tuition_fees_current: int = Field(1)
+    gender: int = Field(1)
+    scholarship_holder: int = Field(0)
+    units_credited_sem1: int = Field(0)
+    units_enrolled_sem1: int = Field(6)
+    evaluations_sem1: int = Field(6)
+    units_approved_sem1: int = Field(6)
+    grade_sem1: float = Field(13.5)
+    no_evaluations_sem1: int = Field(0)
+    units_credited_sem2: int = Field(0)
+    units_enrolled_sem2: int = Field(6)
+    evaluations_sem2: int = Field(6)
+    units_approved_sem2: int = Field(6)
+    grade_sem2: float = Field(14.0)
+    no_evaluations_sem2: int = Field(0)
+    unemployment_rate: float = Field(10.8)
+    inflation_rate: float = Field(1.4)
+    gdp: float = Field(1.74)

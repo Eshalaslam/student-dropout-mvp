@@ -59,6 +59,15 @@ function AppRoutes() {
     api.updateInterventionStatus(id, status).catch(() => {});
   }
 
+  function handleAddStudent(newStudent) {
+    // Prepend newly created student to state so it immediately appears in the list
+    setStudents((prev) => {
+      // Avoid duplicates if backend already returned it via refetch
+      if (prev.some((s) => s.student_id === newStudent.student_id)) return prev;
+      return [newStudent, ...prev];
+    });
+  }
+
   function handleAssignMentor(studentId, newMentorId, newMentorName) {
     setStudents((prev) =>
       prev.map((s) => {
@@ -103,7 +112,7 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard students={scopedStudents} />} />
         <Route
           path="/students"
-          element={<StudentList students={scopedStudents} onAssignMentor={handleAssignMentor} />}
+          element={<StudentList students={scopedStudents} onAssignMentor={handleAssignMentor} onStudentAdded={handleAddStudent} />}
         />
         <Route
           path="/students/:studentId"

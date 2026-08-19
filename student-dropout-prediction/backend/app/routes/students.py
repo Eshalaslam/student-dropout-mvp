@@ -1,12 +1,14 @@
 """
 Student routes — list, detail, and update student records.
 """
+import uuid
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import Optional
 from backend.app.db.supabase_client import db_service
-from backend.app.services.auth_service import get_current_user, require_auth, require_admin
+from backend.app.services.auth_service import get_current_user, require_auth, require_admin, AuthService
 from backend.app.services.model_service import ModelService
 from backend.app.services.shap_service import ShapService
+from backend.app.schemas.student import StudentCreateRequest
 
 router = APIRouter()
 
@@ -71,6 +73,20 @@ def _compute_student_profile(student_id: str, details: dict) -> dict:
             "mentor_name": iv.get("mentor_name", ""),
         })
 
+    # Get assigned mentor from DB relationships
+    mentor_assignment = db_service.get_assigned_mentor_for_student(student_id)
+    assigned_mentor = None
+    assigned_mentor_id = None
+    if mentor_assignment:
+        assigned_mentor_id = mentor_assignment.get("mentor_id")
+        assigned_mentor = mentor_assignment.get("mentor_name") or assigned_mentor_id
+    # Also check denormalized field on users table
+    if not assigned_mentor and user:
+        uid_mentor = user.get("mentor_id")
+        if uid_mentor:
+            assigned_mentor_id = uid_mentor
+            assigned_mentor = user.get("mentor_name") or uid_mentor
+
     return {
         "student_id": student_id,
         "student_name": student_name,
@@ -91,7 +107,140 @@ def _compute_student_profile(student_id: str, details: dict) -> dict:
         "risk_category": risk_category,
         "risk_factors": risk_factors,
         "interventions": interventions,
+        "assigned_mentor": assigned_mentor,
+        "assigned_mentor_id": assigned_mentor_id,
     }
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
+def create_student(
+    body: StudentCreateRequest,
+    current_user: dict = Depends(require_admin),
+):
+    """Admin only: add a new student to the system."""
+    # Generate or validate student_id (defaults to sequential STU-1011, STU-1012, etc.)
+    student_id = body.student_id
+    if not student_id:
+        all_details = db_service.get_all_student_details()
+        max_num = 1010
+        for d in all_details:
+            sid = str(d.get("student_id", ""))
+            if sid.startswith("STU-") and sid[4:].isdigit():
+                try:
+                    max_num = max(max_num, int(sid[4:]))
+                except ValueError:
+                    pass
+        student_id = f"STU-{max_num + 1}"
+
+    # Check for duplicate student_id or email
+    if db_service.get_user_by_student_id(student_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A student with ID '{student_id}' already exists.",
+        )
+    existing_email = db_service.get_user_by_email(body.email)
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A user with email '{body.email}' already exists.",
+        )
+
+    password_hash = AuthService.hash_password(body.password or "student123")
+    username = body.username or student_id
+
+    # Resolve initial mentor name if mentor_id provided
+    mentor_name = None
+    if body.mentor_id:
+        mentor = db_service.get_mentor_by_id(body.mentor_id)
+        if mentor:
+            mentor_name = mentor.get("name")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Mentor '{body.mentor_id}' not found.",
+            )
+
+    user_data = {
+        "email": body.email,
+        "password_hash": password_hash,
+        "full_name": body.full_name,
+        "student_id": student_id,
+        "role": "student",
+        "username": username,
+        "mentor_id": body.mentor_id,
+        "mentor_name": mentor_name,
+        "status": "Active",
+    }
+
+    features = {
+        "marital_status": body.marital_status,
+        "application_mode": body.application_mode,
+        "application_order": body.application_order,
+        "course": body.course,
+        "daytime_attendance": body.daytime_attendance,
+        "age_at_enrollment": body.age_at_enrollment,
+        "previous_qualification": body.previous_qualification,
+        "previous_qualification_grade": body.previous_qualification_grade,
+        "mothers_qualification": body.mothers_qualification,
+        "fathers_qualification": body.fathers_qualification,
+        "mothers_occupation": body.mothers_occupation,
+        "fathers_occupation": body.fathers_occupation,
+        "admission_grade": body.admission_grade,
+        "displaced": body.displaced,
+        "special_needs": body.special_needs,
+        "debtor": body.debtor,
+        "tuition_fees_current": body.tuition_fees_current,
+        "gender": body.gender,
+        "scholarship_holder": body.scholarship_holder,
+        "units_credited_sem1": body.units_credited_sem1,
+        "units_enrolled_sem1": body.units_enrolled_sem1,
+        "evaluations_sem1": body.evaluations_sem1,
+        "units_approved_sem1": body.units_approved_sem1,
+        "grade_sem1": body.grade_sem1,
+        "no_evaluations_sem1": body.no_evaluations_sem1,
+        "units_credited_sem2": body.units_credited_sem2,
+        "units_enrolled_sem2": body.units_enrolled_sem2,
+        "evaluations_sem2": body.evaluations_sem2,
+        "units_approved_sem2": body.units_approved_sem2,
+        "grade_sem2": body.grade_sem2,
+        "no_evaluations_sem2": body.no_evaluations_sem2,
+        "unemployment_rate": body.unemployment_rate,
+        "inflation_rate": body.inflation_rate,
+        "gdp": body.gdp,
+        "department": body.department,
+        "semester": body.semester,
+        "attendance_percentage": body.attendance_percentage,
+    }
+
+    # Create user + student details atomically
+    try:
+        db_service.create_student(user_data, features)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create student: {e}",
+        )
+
+    # Assign mentor if provided
+    if body.mentor_id:
+        try:
+            db_service.assign_mentor(body.mentor_id, student_id)
+        except Exception:
+            pass  # Non-fatal: student is created, just log
+
+    # Log access
+    db_service.log_access(
+        user_name=current_user.get("sub", "admin"),
+        role="Admin",
+        action=f"Added new student {student_id} ({body.full_name})",
+        student_id=student_id,
+    )
+
+    # Return the full student profile
+    details = db_service.get_student_details(student_id)
+    profile = _compute_student_profile(student_id, details)
+    return profile
 
 
 @router.get("/")

@@ -12,8 +12,10 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
-# Load .env file from project root
+# Load .env file from project root or backend dir
 load_dotenv(os.path.join(os.path.dirname(__file__), "../../.env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
+load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
@@ -67,21 +69,32 @@ class DatabaseService:
 
         if HAS_PSYCOPG2 and DATABASE_URL:
             try:
+                min_conn = int(os.getenv("MIN_CONNECTIONS", "1"))
+                max_conn = int(os.getenv("MAX_CONNECTIONS", "10"))
                 self._pool = pool.ThreadedConnectionPool(
-                    minconn=1,
-                    maxconn=5,
+                    minconn=min_conn,
+                    maxconn=max_conn,
                     dsn=DATABASE_URL,
                 )
                 # Verify connectivity and create tables
                 self._init_schema()
                 self.is_supabase_connected = True
-                print("Connected successfully to PostgreSQL database (Aiven).")
+                print(f"Connected successfully to PostgreSQL database (pool: min={min_conn}, max={max_conn}).")
             except Exception as e:
                 print(f"Failed to connect to PostgreSQL: {e}. Falling back to in-memory store.")
                 self._pool = None
                 self.is_supabase_connected = False
         else:
             print("DATABASE_URL not set or psycopg2 not installed. Operating in local in-memory mode.")
+
+    def close_pool(self):
+        """Close all connections in the pool during application shutdown."""
+        if self._pool is not None:
+            try:
+                self._pool.closeall()
+                print("Database connection pool closed gracefully.")
+            except Exception as e:
+                print(f"Error closing connection pool: {e}")
 
     # =========================================================================
     # INTERNAL HELPERS
@@ -756,7 +769,7 @@ class DatabaseService:
     # =========================================================================
 
     def assign_mentor(self, mentor_id: str, student_id: str) -> Dict[str, Any]:
-        """Assign a mentor to a student."""
+        """Assign a mentor to a student. Upserts mentor_assignments and updates users table."""
         now_iso = _now_iso()
         record = {
             "id": str(uuid.uuid4()),
@@ -765,19 +778,46 @@ class DatabaseService:
             "assigned_at": now_iso,
         }
 
+        # Resolve mentor name for denormalized storage
+        mentor = self.get_mentor_by_id(mentor_id)
+        mentor_name = mentor.get("name", "") if mentor else ""
+
         if self.is_supabase_connected:
             try:
+                # Upsert assignment: remove old entries for this student first, then insert
+                self._execute(
+                    "DELETE FROM mentor_assignments WHERE student_id = %s",
+                    (student_id,),
+                )
                 row = self._execute_returning(
                     """INSERT INTO mentor_assignments (id, mentor_id, student_id, assigned_at)
                        VALUES (%s,%s,%s,%s) RETURNING *""",
                     (record["id"], record["mentor_id"], record["student_id"], record["assigned_at"]),
                 )
+                # Also denormalize into users table for fast retrieval
+                try:
+                    self._execute(
+                        "UPDATE users SET mentor_id = %s, mentor_name = %s WHERE student_id = %s",
+                        (mentor_id, mentor_name, student_id),
+                    )
+                except Exception as ue:
+                    print(f"DB assign_mentor users update error: {ue}")
                 if row:
                     return row
             except Exception as e:
                 print(f"DB assign_mentor error: {e}")
 
+        # In-memory: remove old assignment for this student, then add new
+        _in_memory_store.mentor_assignments = [
+            a for a in _in_memory_store.mentor_assignments if a["student_id"] != student_id
+        ]
         _in_memory_store.mentor_assignments.append(record)
+        # Denormalize into users in-memory
+        for u in _in_memory_store.users.values():
+            if u.get("student_id") == student_id:
+                u["mentor_id"] = mentor_id
+                u["mentor_name"] = mentor_name
+                break
         return record
 
     def get_students_by_mentor(self, mentor_id: str) -> List[Dict[str, Any]]:
@@ -1205,6 +1245,49 @@ class DatabaseService:
                 print(f"DB get_feature_influences error: {e}")
 
         return list(_in_memory_store.feature_influences)
+
+    # =========================================================================
+    # STUDENT CREATION (atomic: users + student_details)
+    # =========================================================================
+
+    def get_assigned_mentor_for_student(self, student_id: str) -> Optional[Dict[str, Any]]:
+        """Return the most recent mentor assignment for a student, or None."""
+        if self.is_supabase_connected:
+            try:
+                row = self._query_one(
+                    "SELECT ma.*, m.name as mentor_name FROM mentor_assignments ma "
+                    "LEFT JOIN mentors m ON m.mentor_id = ma.mentor_id "
+                    "WHERE ma.student_id = %s ORDER BY ma.assigned_at DESC LIMIT 1",
+                    (student_id,),
+                )
+                if row:
+                    return row
+            except Exception as e:
+                print(f"DB get_assigned_mentor_for_student error: {e}")
+
+        # In-memory fallback
+        assignments = [
+            a for a in _in_memory_store.mentor_assignments if a["student_id"] == student_id
+        ]
+        if not assignments:
+            return None
+        latest = sorted(assignments, key=lambda x: x.get("assigned_at", ""), reverse=True)[0]
+        mentor = _in_memory_store.mentors.get(latest["mentor_id"])
+        if mentor:
+            latest = {**latest, "mentor_name": mentor.get("name", "")}
+        return latest
+
+    def create_student(self, user_data: Dict[str, Any], features: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Atomically create a student: inserts into users + student_details tables.
+        Returns the newly created user record.
+        """
+        user = self.create_user(user_data)
+        student_id = user.get("student_id") or user_data.get("student_id")
+        if student_id and features:
+            features_with_id = {"student_id": student_id, **features}
+            self.save_student_details(student_id, features_with_id)
+        return user
 
 
 # Global singleton instance

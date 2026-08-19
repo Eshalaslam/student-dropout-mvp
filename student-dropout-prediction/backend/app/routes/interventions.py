@@ -284,36 +284,69 @@ def reassign_mentor(
     current_user: dict = Depends(require_admin),
 ):
     """Admin only: reassign a student's mentor."""
+    # Validate student exists
+    student_details = db_service.get_student_details(student_id)
+    student_user = db_service.get_user_by_student_id(student_id)
+    if not student_details and not student_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Student '{student_id}' not found.",
+        )
+
+    # Find mentor — try by mentor_id first, then by username/name
     mentor = db_service.get_mentor_by_id(body.mentor_id)
+    if not mentor:
+        mentor = db_service.get_mentor_by_username(body.mentor_id)
+    if not mentor:
+        # Try matching by name among all mentors
+        all_mentors = db_service.get_all_mentors()
+        for m in all_mentors:
+            if m.get("name", "").lower() == body.mentor_id.lower():
+                mentor = m
+                break
     if not mentor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Mentor '{body.mentor_id}' not found.",
         )
 
+    resolved_mentor_id = mentor.get("mentor_id") or mentor.get("id")
+    mentor_name = mentor.get("name", "")
+
     # Update or create intervention with new mentor
     interventions = db_service.get_interventions(student_id)
     if interventions:
         latest = interventions[0]
         db_service.update_intervention(latest["id"], {
-            "assigned_mentor": body.mentor_id,
-            "mentor_name": mentor.get("name", ""),
+            "assigned_mentor": resolved_mentor_id,
+            "mentor_name": mentor_name,
+        })
+    else:
+        # No interventions yet — create a placeholder to store the assignment
+        db_service.create_intervention({
+            "student_id": student_id,
+            "mentor_name": mentor_name,
+            "type": "Academic Advising",
+            "notes": "Auto-created on mentor assignment.",
+            "status": "Open",
+            "intervention_status": "Not Started",
+            "assigned_mentor": resolved_mentor_id,
         })
 
-    # Create assignment record
-    db_service.assign_mentor(body.mentor_id, student_id)
+    # Persist assignment in mentor_assignments table and update users table
+    db_service.assign_mentor(resolved_mentor_id, student_id)
 
     # Log access
     db_service.log_access(
         user_name=current_user.get("sub", "admin"),
         role="Admin",
-        action=f"Reassigned mentor for {student_id} to {body.mentor_id}",
+        action=f"Reassigned mentor for {student_id} to {resolved_mentor_id} ({mentor_name})",
         student_id=student_id,
     )
 
     return {
-        "message": f"Student {student_id} reassigned to mentor {mentor.get('name', body.mentor_id)}",
+        "message": f"Student {student_id} reassigned to mentor {mentor_name}",
         "student_id": student_id,
-        "mentor_id": body.mentor_id,
-        "mentor_name": mentor.get("name"),
+        "mentor_id": resolved_mentor_id,
+        "mentor_name": mentor_name,
     }

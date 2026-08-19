@@ -141,6 +141,13 @@ export const api = {
     });
   },
 
+  async createStudent(studentData) {
+    return await request("/students/", {
+      method: "POST",
+      body: JSON.stringify(studentData),
+    });
+  },
+
   async addStudentIntervention(studentId, intervention) {
     return await request(`/students/${studentId}/interventions`, {
       method: "POST",

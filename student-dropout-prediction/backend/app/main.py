@@ -51,6 +51,13 @@ def _auto_seed():
     logger.info("In-memory mode: demo data seeded automatically.")
 
 
+@app.on_event("shutdown")
+def _shutdown():
+    """Gracefully close the database connection pool on application shutdown."""
+    db_service.close_pool()
+    logger.info("Database connection pool closed.")
+
+
 @app.get("/", tags=["Health"])
 def read_root():
     return {
