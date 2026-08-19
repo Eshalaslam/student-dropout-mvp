@@ -178,8 +178,9 @@ function StudentDetailDrawer({
                 Assigned Mentor
               </label>
               <MentorAssignDropdown
-                value={student.assigned_mentor}
-                onChange={(mentorName) => onUpdateMentor(student.student_id, mentorName)}
+                studentId={student.student_id}
+                value={student.assigned_mentor || student.assigned_mentor_id}
+                onAssign={(id, mentorId, mentorName) => onUpdateMentor(id, mentorName)}
                 mentors={mentors}
                 isAdmin={isAdmin}
                 disabled={statusUpdating}

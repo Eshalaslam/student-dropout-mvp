@@ -20,8 +20,12 @@ export default function PrivateRoute({ allowedRoles, children }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(currentUser.role)) {
-    return <AccessDenied />;
+  if (allowedRoles && allowedRoles.length > 0) {
+    const userRole = (currentUser.role || "").toLowerCase().trim();
+    const isAllowed = allowedRoles.some((r) => r.toLowerCase().trim() === userRole);
+    if (!isAllowed) {
+      return <AccessDenied />;
+    }
   }
 
   return children ? children : <Outlet />;

@@ -1,27 +1,59 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, SlidersHorizontal } from "lucide-react";
 import StudentTable from "../components/StudentTable";
+import { useAuth } from "../context/AuthContext";
 
-export default function StudentList({ students }) {
+export default function StudentList({ students = [], onAssignMentor }) {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "Admin" || currentUser?.role === "admin";
+
   const [search, setSearch] = useState("");
   const [riskFilter, setRiskFilter] = useState("All");
   const [deptFilter, setDeptFilter] = useState("All");
+  const [mentorFilter, setMentorFilter] = useState("All");
   const [sortDesc, setSortDesc] = useState(true);
 
-  const departments = ["All", ...new Set(students.map((s) => s.department))];
+  const departments = useMemo(
+    () => ["All", ...new Set(students.map((s) => s.department).filter(Boolean))],
+    [students]
+  );
 
-  const filtered = students
-    .filter(
-      (s) =>
-        search === "" ||
-        s.student_name.toLowerCase().includes(search.toLowerCase()) ||
-        s.student_id.toLowerCase().includes(search.toLowerCase())
-    )
-    .filter((s) => riskFilter === "All" || s.risk_category === riskFilter)
-    .filter((s) => deptFilter === "All" || s.department === deptFilter)
-    .sort((a, b) => (sortDesc ? b.dropout_probability - a.dropout_probability : a.dropout_probability - b.dropout_probability));
+  const mentorsList = useMemo(() => {
+    const names = new Set(
+      students
+        .map((s) => s.assigned_mentor)
+        .filter((m) => m && m !== "Unassigned")
+    );
+    return Array.from(names);
+  }, [students]);
+
+  const filtered = useMemo(() => {
+    return students
+      .filter((s) => {
+        if (!search) return true;
+        const q = search.toLowerCase();
+        return (
+          (s.student_name || "").toLowerCase().includes(q) ||
+          (s.student_id || "").toLowerCase().includes(q)
+        );
+      })
+      .filter((s) => riskFilter === "All" || s.risk_category === riskFilter)
+      .filter((s) => deptFilter === "All" || s.department === deptFilter)
+      .filter((s) => {
+        if (mentorFilter === "All") return true;
+        if (mentorFilter === "Unassigned") {
+          return !s.assigned_mentor || s.assigned_mentor === "Unassigned";
+        }
+        return s.assigned_mentor === mentorFilter;
+      })
+      .sort((a, b) =>
+        sortDesc
+          ? (b.dropout_probability || 0) - (a.dropout_probability || 0)
+          : (a.dropout_probability || 0) - (b.dropout_probability || 0)
+      );
+  }, [students, search, riskFilter, deptFilter, mentorFilter, sortDesc]);
 
   return (
     <div className="space-y-4">
@@ -33,6 +65,7 @@ export default function StudentList({ students }) {
       </div>
 
       <div className="flex flex-wrap gap-3 items-center">
+        {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -42,25 +75,50 @@ export default function StudentList({ students }) {
             className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400"
           />
         </div>
+
+        {/* Risk filter */}
         <select
           value={riskFilter}
           onChange={(e) => setRiskFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700"
+          className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-200"
         >
-          <option>All</option>
-          <option>High</option>
-          <option>Medium</option>
-          <option>Low</option>
+          <option value="All">All Risk Bands</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
         </select>
+
+        {/* Department filter */}
         <select
           value={deptFilter}
           onChange={(e) => setDeptFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700"
+          className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-200"
         >
           {departments.map((d) => (
-            <option key={d}>{d}</option>
+            <option key={d} value={d}>
+              {d === "All" ? "All Departments" : d}
+            </option>
           ))}
         </select>
+
+        {/* Mentor filter (Admin only) */}
+        {isAdmin && (
+          <select
+            value={mentorFilter}
+            onChange={(e) => setMentorFilter(e.target.value)}
+            className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-200"
+          >
+            <option value="All">All Mentors</option>
+            <option value="Unassigned">Mentor: Unassigned</option>
+            {mentorsList.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Sort */}
         <button
           onClick={() => setSortDesc(!sortDesc)}
           className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 transition-colors"
@@ -69,7 +127,11 @@ export default function StudentList({ students }) {
         </button>
       </div>
 
-      <StudentTable students={filtered} onSelect={(id) => navigate(`/students/${id}`)} />
+      <StudentTable
+        students={filtered}
+        onSelect={(id) => navigate(`/students/${id}`)}
+        onAssignMentor={onAssignMentor}
+      />
     </div>
   );
 }

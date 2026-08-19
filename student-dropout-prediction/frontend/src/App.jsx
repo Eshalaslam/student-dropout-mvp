@@ -59,6 +59,27 @@ function AppRoutes() {
     api.updateInterventionStatus(id, status).catch(() => {});
   }
 
+  function handleAssignMentor(studentId, newMentorId, newMentorName) {
+    setStudents((prev) =>
+      prev.map((s) => {
+        if (s.student_id === studentId) {
+          return {
+            ...s,
+            assigned_mentor: newMentorName || newMentorId,
+            assigned_mentor_id: newMentorId,
+            assignedMentorId: newMentorId,
+            assignedMentor: newMentorName || newMentorId,
+          };
+        }
+        return s;
+      })
+    );
+    // Persist reassignment to backend
+    if (newMentorId) {
+      api.reassignMentor(studentId, newMentorId).catch(() => {});
+    }
+  }
+
   return (
     <Routes>
       {/* Public Routes */}
@@ -80,7 +101,10 @@ function AppRoutes() {
         }
       >
         <Route path="/dashboard" element={<Dashboard students={scopedStudents} />} />
-        <Route path="/students" element={<StudentList students={scopedStudents} />} />
+        <Route
+          path="/students"
+          element={<StudentList students={scopedStudents} onAssignMentor={handleAssignMentor} />}
+        />
         <Route
           path="/students/:studentId"
           element={
@@ -88,6 +112,7 @@ function AppRoutes() {
               students={students}
               onAddIntervention={handleAddIntervention}
               onUpdateInterventionStatus={handleUpdateInterventionStatus}
+              onAssignMentor={handleAssignMentor}
             />
           }
         />

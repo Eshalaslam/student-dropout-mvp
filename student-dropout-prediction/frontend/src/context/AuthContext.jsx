@@ -3,6 +3,14 @@ import api, { setToken, getToken, removeToken } from "../services/api";
 
 const AuthContext = createContext(null);
 
+function formatRole(role) {
+  if (!role) return "Student";
+  const r = String(role).toLowerCase().trim();
+  if (r === "admin") return "Admin";
+  if (r === "mentor") return "Mentor";
+  return "Student";
+}
+
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(() => {
     const token = localStorage.getItem("dropout_auth_token");
@@ -12,13 +20,16 @@ export function AuthProvider({ children }) {
     }
     try {
       const stored = localStorage.getItem("dropout_auth_user");
-      return stored ? JSON.parse(stored) : null;
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      if (parsed?.role) parsed.role = formatRole(parsed.role);
+      return parsed;
     } catch {
       return null;
     }
   });
 
-  const [authLoading, setAuthLoading] = useState(() => !!getToken());
+  const [authLoading, setAuthLoading] = useState(() => !getToken());
   const [accounts, setAccounts] = useState([]);
 
   // Fetch available login accounts (public, no auth needed)
@@ -41,8 +52,8 @@ export function AuthProvider({ children }) {
               username: me.username || me.email,
               name: me.name || me.full_name || me.username,
               email: me.email,
-              role: me.role,
-              mentorId: me.mentorId,
+              role: formatRole(me.role),
+              mentorId: me.mentorId || me.mentor_id,
               mentorName: me.mentorName || me.name,
               status: me.status || "Active",
             };
@@ -73,8 +84,8 @@ export function AuthProvider({ children }) {
           username: u.username || u.email,
           name: u.name || u.full_name,
           email: u.email,
-          role: u.role,
-          mentorId: u.mentorId,
+          role: formatRole(u.role),
+          mentorId: u.mentorId || u.mentor_id,
           mentorName: u.mentorName || u.name,
           status: u.status || "Active",
         };

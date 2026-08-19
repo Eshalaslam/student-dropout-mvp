@@ -6,6 +6,7 @@ import StatusPill from "../components/StatusPill";
 import FactorBar from "../components/FactorBar";
 import SimTag from "../components/SimTag";
 import ProgressBar from "../components/ProgressBar";
+import MentorAssignDropdown from "../components/MentorAssignDropdown";
 import DATA from "../data/mockStudents";
 import { useAuth } from "../context/AuthContext";
 import { getScopedStudents } from "../utils/useRbac";
@@ -44,10 +45,16 @@ function attendanceColor(pct) {
   return "bg-rose-500";
 }
 
-export default function StudentDetails({ students = DATA, onAddIntervention, onUpdateInterventionStatus }) {
+export default function StudentDetails({
+  students = DATA,
+  onAddIntervention,
+  onUpdateInterventionStatus,
+  onAssignMentor,
+}) {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "Admin" || currentUser?.role === "admin";
 
   const [tab, setTab] = useState("overview");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -224,6 +231,17 @@ export default function StudentDetails({ students = DATA, onAddIntervention, onU
                 <dt className="text-slate-500">Tuition fees</dt>
                 <dd>
                   <BooleanBadge value={student.tuition_fees_up_to_date} trueLabel="Up to date" falseLabel="Overdue" />
+                </dd>
+              </div>
+              <div className="flex justify-between items-center text-sm pt-1 border-t border-slate-100">
+                <dt className="text-slate-500 font-medium">Assigned Mentor</dt>
+                <dd>
+                  <MentorAssignDropdown
+                    studentId={student.student_id}
+                    value={student.assigned_mentor || student.assigned_mentor_id}
+                    onAssign={onAssignMentor}
+                    isAdmin={isAdmin}
+                  />
                 </dd>
               </div>
             </dl>

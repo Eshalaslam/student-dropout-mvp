@@ -18,6 +18,8 @@ import {
 import KpiCard from "../components/KpiCard";
 import api from "../services/api";
 
+import { USERS } from "../data/mockAuth";
+
 // Helper for generating secure temporary passwords
 function generateTempPassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -39,11 +41,19 @@ export default function ManageMentors() {
     setLoadError("");
     api.getMentors()
       .then((data) => {
-        if (Array.isArray(data)) setDbMentors(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setDbMentors(data);
+        } else {
+          // Fallback to mock mentors if empty
+          const fallback = USERS.filter((u) => u.role === "Mentor");
+          setDbMentors(fallback);
+        }
       })
       .catch((err) => {
         console.error("Failed to load mentors:", err);
-        setLoadError(err?.message || "Failed to load mentors. Please try again.");
+        const fallback = USERS.filter((u) => u.role === "Mentor");
+        setDbMentors(fallback);
+        setLoadError(err?.message || "Failed to load mentors from database. Showing default mentors.");
       })
       .finally(() => setLoading(false));
   }
@@ -71,20 +81,22 @@ export default function ManageMentors() {
   });
   const [formError, setFormError] = useState("");
 
-  // Use DB mentors
-  const mentors = dbMentors;
+  // Use DB mentors (or fallback)
+  const mentors = dbMentors.length > 0 ? dbMentors : USERS.filter((u) => u.role === "Mentor");
 
   // Filtered mentors list
   const filteredMentors = useMemo(() => {
+    const q = (search || "").toLowerCase().trim();
     return mentors
       .filter((m) => statusFilter === "All" || m.status === statusFilter)
-      .filter(
-        (m) =>
-          search === "" ||
-          m.name.toLowerCase().includes(search.toLowerCase()) ||
-          m.username.toLowerCase().includes(search.toLowerCase()) ||
-          (m.mentorId && m.mentorId.toLowerCase().includes(search.toLowerCase()))
-      );
+      .filter((m) => {
+        if (!q) return true;
+        const name = (m.name || m.full_name || "").toLowerCase();
+        const username = (m.username || "").toLowerCase();
+        const mId = (m.mentorId || m.mentor_id || "").toLowerCase();
+        const email = (m.email || "").toLowerCase();
+        return name.includes(q) || username.includes(q) || mId.includes(q) || email.includes(q);
+      });
   }, [mentors, statusFilter, search]);
 
   // KPIs
@@ -328,14 +340,16 @@ export default function ManageMentors() {
               </tr>
             </thead>
             <tbody>
-              {filteredMentors.map((m) => {
+              {filteredMentors.map((m, idx) => {
                 const assignedCount = m.assigned_students_count || 0;
-                const isActive = m.status === "Active";
-                const initials = m.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+                const isActive = m.status === "Active" || !m.status;
+                const mName = m.name || m.full_name || m.username || "Mentor";
+                const initials = mName.trim().split(/\s+/).map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "ME";
+                const mentorIdDisplay = m.mentorId || m.mentor_id || "—";
 
                 return (
                   <tr
-                    key={m.id}
+                    key={m.id || m.mentorId || m.mentor_id || idx}
                     className={`border-b border-slate-100 last:border-0 hover:bg-slate-50/80 transition-colors ${
                       !isActive ? "bg-slate-50/40 opacity-75" : ""
                     }`}
@@ -348,15 +362,15 @@ export default function ManageMentors() {
                           {initials}
                         </div>
                         <div>
-                          <div className="font-semibold text-slate-900 leading-tight">{m.name}</div>
-                          <div className="text-xs text-slate-400 mt-0.5">{m.email}</div>
+                          <div className="font-semibold text-slate-900 leading-tight">{mName}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">{m.email || `${m.username || "mentor"}@university.edu`}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 font-mono text-xs text-slate-600">{m.username}</td>
+                    <td className="px-5 py-3.5 font-mono text-xs text-slate-600">{m.username || "—"}</td>
                     <td className="px-5 py-3.5">
                       <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                        {m.mentorId || "—"}
+                        {mentorIdDisplay}
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-center">
