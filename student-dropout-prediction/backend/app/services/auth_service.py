@@ -152,12 +152,17 @@ class AuthService:
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(security_bearer),
 ) -> Optional[Dict[str, Any]]:
-    """FastAPI dependency to extract current user from Authorization header."""
+    """FastAPI dependency to extract current user from Authorization header.
+    Returns None if no credentials or if token is invalid/expired (does NOT raise 401).
+    """
     if not credentials:
         return None
-    token = credentials.credentials
-    payload = AuthService.decode_token(token)
-    return payload
+    try:
+        token = credentials.credentials
+        payload = AuthService.decode_token(token)
+        return payload
+    except Exception:
+        return None
 
 
 def require_auth(

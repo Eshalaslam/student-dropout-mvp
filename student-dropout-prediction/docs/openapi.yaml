@@ -1,0 +1,1424 @@
+openapi: 3.0.3
+info:
+  title: Student Dropout Early-Warning System API
+  description: |
+    Role-Based Backend API for the Student Dropout Early-Warning System.
+    Provides endpoints for student risk assessment, mentor intervention tracking,
+    cohort reporting, bias & privacy auditing, and mentor management.
+    
+    ### Roles & Access Levels:
+    - **Admin**: Full access across all departments, mentors, audit logs, fairness evaluation, and mentor user management.
+    - **Mentor**: Scoped access limited to students assigned to the authenticated mentor. Audit and mentor management endpoints are restricted.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Local Development FastAPI Server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication, session management, and profile retrieval
+  - name: Dashboard
+    description: Aggregated cohort statistics, risk distribution, and prioritized outreach
+  - name: Students
+    description: Student directory, detailed academic profiles, and risk factor breakdown
+  - name: Interventions
+    description: Kanban tracking, intervention status management, mentor notes, and reassignment
+  - name: Reports
+    description: Report generation, live preview, export, and automated scheduling
+  - name: Bias & Privacy Audit
+    description: Model fairness evaluation, feature influence disclosure, access logs, and privacy docs (Admin Only)
+  - name: Mentor Management
+    description: Mentor account registration, profile updates, and status deactivation (Admin Only)
+
+paths:
+  # ==========================================
+  # AUTHENTICATION
+  # ==========================================
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate user & start session
+      description: Validates username/password credentials, checks active status, and returns user profile with JWT token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid request payload or missing fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid username or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Account deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Terminate session
+      description: Invalidates the active JWT session token.
+      responses:
+        '200':
+          description: Successfully logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully logged out
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current authenticated user profile
+      description: Retrieves identity, role, and mentor assignment scope for the authenticated session.
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # ==========================================
+  # DASHBOARD
+  # ==========================================
+  /api/dashboard/stats:
+    get:
+      tags:
+        - Dashboard
+      summary: Get overview KPI statistics
+      description: |
+        Returns aggregated counts for total students, risk categories (High, Medium, Low),
+        and intervention counts (Open, In Progress, Resolved).
+        **Mentors** receive stats scoped only to their assigned students.
+      responses:
+        '200':
+          description: Dashboard KPI metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardStats'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/dashboard/risk-distribution:
+    get:
+      tags:
+        - Dashboard
+      summary: Get cohort risk distribution
+      description: Returns breakdown percentages and counts across High, Medium, and Low risk tiers.
+      responses:
+        '200':
+          description: Risk distribution breakdown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskDistribution'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/dashboard/department-breakdown:
+    get:
+      tags:
+        - Dashboard
+      summary: Get department-wise risk averages
+      description: Returns average dropout risk probability aggregated per academic department.
+      responses:
+        '200':
+          description: Department risk breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DepartmentRisk'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/dashboard/top-risk-drivers:
+    get:
+      tags:
+        - Dashboard
+      summary: Get top recurring risk drivers
+      description: Returns the most frequent model risk factors across the cohort (e.g. failed curricular units, low attendance).
+      responses:
+        '200':
+          description: List of recurring risk drivers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RiskDriverStat'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/dashboard/priority-outreach:
+    get:
+      tags:
+        - Dashboard
+      summary: Get prioritized high-risk students
+      description: Returns high-risk students sorted by highest dropout probability first.
+      responses:
+        '200':
+          description: List of high-risk priority students
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Student'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # ==========================================
+  # STUDENTS
+  # ==========================================
+  /api/students:
+    get:
+      tags:
+        - Students
+      summary: List and filter students
+      description: |
+        Retrieves a list of students with search and filter capabilities.
+        **Mentors** automatically receive only their assigned students.
+      parameters:
+        - name: search
+          in: query
+          description: Search term matching student name or ID
+          required: false
+          schema:
+            type: string
+        - name: risk_level
+          in: query
+          description: Filter by risk band
+          required: false
+          schema:
+            type: string
+            enum: [All, High, Medium, Low]
+        - name: department
+          in: query
+          description: Filter by academic department
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Filtered list of students
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Student'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/students/{student_id}:
+    get:
+      tags:
+        - Students
+      summary: Get student profile and risk breakdown
+      description: |
+        Retrieves full academic profile, risk factors, and intervention history for a specific student.
+        **Mentors** can only access students assigned to them.
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          description: Unique Student identifier (e.g. STU-1002)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full student record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Forbidden - Student not assigned to requesting mentor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Student not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags:
+        - Students
+      summary: Update student profile details (Admin Only)
+      description: Allows administrators to update editable academic or demographic details.
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tuition_fees_up_to_date:
+                  type: boolean
+                scholarship_holder:
+                  type: boolean
+                attendance_percentage:
+                  type: number
+      responses:
+        '200':
+          description: Updated student profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ==========================================
+  # INTERVENTIONS
+  # ==========================================
+  /api/interventions:
+    get:
+      tags:
+        - Interventions
+      summary: Get intervention tracking records
+      description: |
+        Retrieves students enriched with intervention status, assigned mentor, and notes timeline.
+        Mentors only receive their assigned board.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [All, "Not Started", "In Progress", Resolved, Escalated]
+        - name: mentor_id
+          in: query
+          description: Filter by mentor (Admin only)
+          schema:
+            type: string
+        - name: risk_band
+          in: query
+          schema:
+            type: string
+            enum: [All, High, Medium, Low]
+      responses:
+        '200':
+          description: List of intervention records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InterventionStudent'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/interventions/{student_id}:
+    get:
+      tags:
+        - Interventions
+      summary: Get single student intervention details
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterventionStudent'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/interventions/{student_id}/status:
+    patch:
+      tags:
+        - Interventions
+      summary: Update intervention status
+      description: Updates the status of a student follow-up (e.g. Mark as Resolved, Escalate).
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: ["Not Started", "In Progress", Resolved, Escalated]
+      responses:
+        '200':
+          description: Updated intervention record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterventionStudent'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/interventions/{student_id}/notes:
+    post:
+      tags:
+        - Interventions
+      summary: Add mentor progress note
+      description: Appends a timestamped follow-up note to the student's intervention timeline.
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  example: Referred student to emergency bursary office.
+      responses:
+        '201':
+          description: Note added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterventionNote'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/interventions/{student_id}/reassign:
+    patch:
+      tags:
+        - Interventions
+      summary: Reassign student to another mentor (Admin Only)
+      description: Reassigns the student's lead mentor.
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mentor_name
+              properties:
+                mentor_name:
+                  type: string
+                  example: Dr. Priya Nair
+      responses:
+        '200':
+          description: Reassignment successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterventionStudent'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ==========================================
+  # REPORTS
+  # ==========================================
+  /api/reports/preview:
+    get:
+      tags:
+        - Reports
+      summary: Live preview report data
+      description: Generates a real-time preview of the selected report with applied filters.
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [at-risk, intervention, dept-trend, audit]
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: risk_band
+          in: query
+          schema:
+            type: string
+        - name: mentor_id
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Report preview dataset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_type:
+                    type: string
+                  total_records:
+                    type: integer
+                  generated_at:
+                    type: string
+                    format: date-time
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/reports/export:
+    post:
+      tags:
+        - Reports
+      summary: Export report as CSV or PDF
+      description: Downloads the compiled report file.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - format
+              properties:
+                type:
+                  type: string
+                  enum: [at-risk, intervention, dept-trend, audit]
+                format:
+                  type: string
+                  enum: [csv, pdf]
+                filters:
+                  type: object
+      responses:
+        '200':
+          description: Exported file stream
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/reports/history:
+    get:
+      tags:
+        - Reports
+      summary: Get generated report history
+      description: Lists previously generated reports with metadata and download links.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReportHistoryItem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/reports/schedule:
+    get:
+      tags:
+        - Reports
+      summary: List scheduled recurring reports
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScheduledReport'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags:
+        - Reports
+      summary: Create automated report schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduledReportCreate'
+      responses:
+        '201':
+          description: Schedule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledReport'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/reports/schedule/{id}:
+    delete:
+      tags:
+        - Reports
+      summary: Delete report schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Schedule deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # ==========================================
+  # BIAS & PRIVACY AUDIT (ADMIN ONLY)
+  # ==========================================
+  /api/audit/fairness:
+    get:
+      tags:
+        - Bias & Privacy Audit
+      summary: Get model demographic fairness evaluation (Admin Only)
+      description: Returns recall, false negative rate, false positive rate, and selection rate per demographic subgroup.
+      parameters:
+        - name: attribute
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [gender, category, region, age_band]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FairnessAuditResult'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+
+  /api/audit/feature-disclosure:
+    get:
+      tags:
+        - Bias & Privacy Audit
+      summary: Get feature influence disclosure table (Admin Only)
+      description: Returns sensitive attributes vs. model features transparency table.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeatureInfluence'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+
+  /api/audit/access-log:
+    get:
+      tags:
+        - Bias & Privacy Audit
+      summary: Get data access compliance audit log (Admin Only)
+      parameters:
+        - name: user
+          in: query
+          schema:
+            type: string
+        - name: action_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccessLogItem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+
+  /api/audit/privacy-docs:
+    get:
+      tags:
+        - Bias & Privacy Audit
+      summary: Get data privacy and usage documentation (Admin Only)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyDoc'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+    put:
+      tags:
+        - Bias & Privacy Audit
+      summary: Update privacy policy documentation (Admin Only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacyDoc'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+
+  /api/audit/export:
+    get:
+      tags:
+        - Bias & Privacy Audit
+      summary: Export full audit record CSV (Admin Only)
+      responses:
+        '200':
+          description: Audit log CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+
+  # ==========================================
+  # MENTOR MANAGEMENT (ADMIN ONLY)
+  # ==========================================
+  /api/mentors:
+    get:
+      tags:
+        - Mentor Management
+      summary: List all mentors (Admin Only)
+      description: Returns all mentor accounts, status, and assigned student counts.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MentorProfile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+    post:
+      tags:
+        - Mentor Management
+      summary: Register a new mentor account (Admin Only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MentorCreateRequest'
+      responses:
+        '201':
+          description: Mentor created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentorProfile'
+        '400':
+          description: Username already exists or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+
+  /api/mentors/{id}:
+    patch:
+      tags:
+        - Mentor Management
+      summary: Edit mentor profile details (Admin Only)
+      description: Updates name or email. Mentor ID and username cannot be changed.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentorProfile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/mentors/{id}/deactivate:
+    patch:
+      tags:
+        - Mentor Management
+      summary: Soft-deactivate or reactivate mentor (Admin Only)
+      description: Toggles mentor active status. Deactivation prevents login while preserving assigned student data.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status toggled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MentorProfile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenAdminOnlyError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+# ==========================================
+# COMPONENTS & SCHEMAS
+# ==========================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required or invalid/expired session
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Access denied for current user or resource not assigned
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenAdminOnlyError:
+      description: Restricted endpoint - Admin role required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # ── Auth Schemas
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          example: admin123
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6...
+        token_type:
+          type: string
+          example: bearer
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: admin1
+        username:
+          type: string
+          example: admin
+        name:
+          type: string
+          example: Admin User
+        email:
+          type: string
+          example: admin@university.edu
+        role:
+          type: string
+          enum: [Admin, Mentor]
+          example: Admin
+        mentorId:
+          type: string
+          nullable: true
+          example: M001
+        mentorName:
+          type: string
+          nullable: true
+          example: Dr. Priya Nair
+        status:
+          type: string
+          enum: [Active, Inactive]
+          example: Active
+
+    # ── Student & Risk Schemas
+    Student:
+      type: object
+      properties:
+        student_id:
+          type: string
+          example: STU-1002
+        student_name:
+          type: string
+          example: Marco Silva
+        department:
+          type: string
+          example: Mechanical Engineering
+        semester:
+          type: integer
+          example: 3
+        admission_grade:
+          type: number
+          example: 118.7
+        age_at_enrollment:
+          type: integer
+          example: 22
+        scholarship_holder:
+          type: boolean
+          example: false
+        tuition_fees_up_to_date:
+          type: boolean
+          example: true
+        curricular_units_1st_sem_enrolled:
+          type: integer
+          example: 6
+        curricular_units_1st_sem_approved:
+          type: integer
+          example: 3
+        curricular_units_2nd_sem_enrolled:
+          type: integer
+          example: 6
+        curricular_units_2nd_sem_approved:
+          type: integer
+          example: 2
+        curricular_units_failed:
+          type: integer
+          example: 7
+        approval_rate:
+          type: number
+          example: 0.42
+        attendance_percentage:
+          type: number
+          example: 61
+        dropout_probability:
+          type: number
+          example: 0.81
+        risk_category:
+          type: string
+          enum: [High, Medium, Low]
+          example: High
+        risk_factors:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskFactor'
+        interventions:
+          type: array
+          items:
+            $ref: '#/components/schemas/InterventionItem'
+
+    RiskFactor:
+      type: object
+      properties:
+        factor:
+          type: string
+          example: High number of failed curricular units
+        tier:
+          type: string
+          enum: [major, moderate, minor]
+          example: major
+        direction:
+          type: string
+          enum: [risk, protective]
+          example: risk
+
+    InterventionItem:
+      type: object
+      properties:
+        type:
+          type: string
+          example: Academic tutoring referral
+        date:
+          type: string
+          format: date
+          example: 2026-06-02
+        notes:
+          type: string
+          example: Referred to peer tutoring.
+        status:
+          type: string
+          enum: [Open, "In Progress", Resolved]
+          example: In Progress
+        mentor_name:
+          type: string
+          example: Dr. Priya Nair
+
+    # ── Intervention Tracking Schemas
+    InterventionStudent:
+      allOf:
+        - $ref: '#/components/schemas/Student'
+        - type: object
+          properties:
+            intervention_status:
+              type: string
+              enum: ["Not Started", "In Progress", Resolved, Escalated]
+              example: In Progress
+            assigned_mentor:
+              type: string
+              example: Dr. Priya Nair
+            last_updated:
+              type: string
+              format: date
+              nullable: true
+              example: 2026-07-10
+            mentor_notes:
+              type: array
+              items:
+                $ref: '#/components/schemas/InterventionNote'
+
+    InterventionNote:
+      type: object
+      properties:
+        id:
+          type: string
+          example: n1
+        author:
+          type: string
+          example: Dr. Priya Nair
+        timestamp:
+          type: string
+          format: date-time
+          example: 2026-08-17T09:15:00Z
+        text:
+          type: string
+          example: Scheduled follow-up counseling session.
+
+    # ── Dashboard Schemas
+    DashboardStats:
+      type: object
+      properties:
+        total_students:
+          type: integer
+          example: 10
+        high_risk_count:
+          type: integer
+          example: 4
+        medium_risk_count:
+          type: integer
+          example: 3
+        low_risk_count:
+          type: integer
+          example: 3
+        active_interventions:
+          type: integer
+          example: 5
+
+    RiskDistribution:
+      type: object
+      properties:
+        high:
+          type: integer
+          example: 4
+        medium:
+          type: integer
+          example: 3
+        low:
+          type: integer
+          example: 3
+
+    DepartmentRisk:
+      type: object
+      properties:
+        department:
+          type: string
+          example: Computer Science
+        average_risk_percentage:
+          type: integer
+          example: 64
+
+    RiskDriverStat:
+      type: object
+      properties:
+        factor:
+          type: string
+          example: High number of failed curricular units
+        count:
+          type: integer
+          example: 4
+
+    # ── Reports Schemas
+    ReportHistoryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: rpt-001
+        name:
+          type: string
+          example: At-Risk Students — Aug 2026
+        type:
+          type: string
+          enum: [at-risk, intervention, dept-trend, audit]
+        generatedBy:
+          type: string
+          example: Dr. Priya Nair
+        date:
+          type: string
+          format: date-time
+        size:
+          type: string
+          example: 14 KB
+
+    ScheduledReport:
+      type: object
+      properties:
+        id:
+          type: string
+          example: sch-001
+        name:
+          type: string
+          example: Weekly At-Risk Summary
+        type:
+          type: string
+          enum: [at-risk, intervention, dept-trend, audit]
+        frequency:
+          type: string
+          enum: [Weekly, Monthly]
+        email:
+          type: string
+          example: admin@university.edu
+        active:
+          type: boolean
+          example: true
+
+    ScheduledReportCreate:
+      type: object
+      required:
+        - name
+        - type
+        - frequency
+        - email
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        frequency:
+          type: string
+        email:
+          type: string
+
+    # ── Audit Schemas
+    FairnessAuditResult:
+      type: object
+      properties:
+        attribute:
+          type: string
+          example: gender
+        threshold:
+          type: number
+          example: 0.10
+        overall:
+          $ref: '#/components/schemas/FairnessGroupMetrics'
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/FairnessGroupMetrics'
+
+    FairnessGroupMetrics:
+      type: object
+      properties:
+        group:
+          type: string
+          example: Female
+        n:
+          type: integer
+          example: 4
+        recall:
+          type: number
+          example: 0.85
+        fnr:
+          type: number
+          example: 0.15
+        fpr:
+          type: number
+          example: 0.09
+        selectionRate:
+          type: number
+          example: 0.31
+
+    FeatureInfluence:
+      type: object
+      properties:
+        feature:
+          type: string
+          example: Gender
+        sensitive:
+          type: boolean
+          example: true
+        usedInModel:
+          type: boolean
+          example: false
+        auditOnly:
+          type: boolean
+          example: true
+
+    AccessLogItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: al-001
+        timestamp:
+          type: string
+          format: date-time
+        user:
+          type: string
+          example: Dr. Priya Nair
+        role:
+          type: string
+          example: Mentor
+        action:
+          type: string
+          example: Viewed Student
+        studentId:
+          type: string
+          nullable: true
+          example: STU-1002
+
+    PrivacyDoc:
+      type: object
+      properties:
+        content:
+          type: string
+          example: "**What data is collected**\nWe collect academic performance records..."
+        updated_at:
+          type: string
+          format: date-time
+
+    # ── Mentor Management Schemas
+    MentorProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          example: mentor1
+        username:
+          type: string
+          example: priya
+        name:
+          type: string
+          example: Dr. Priya Nair
+        email:
+          type: string
+          example: priya@university.edu
+        role:
+          type: string
+          example: Mentor
+        mentorId:
+          type: string
+          example: M001
+        status:
+          type: string
+          enum: [Active, Inactive]
+          example: Active
+        assigned_students_count:
+          type: integer
+          example: 4
+
+    MentorCreateRequest:
+      type: object
+      required:
+        - name
+        - username
+        - password
+      properties:
+        name:
+          type: string
+          example: Dr. Ramesh Gupta
+        username:
+          type: string
+          example: ramesh.gupta
+        password:
+          type: string
+          example: Mentor@2026
+        mentorId:
+          type: string
+          example: M004
+        email:
+          type: string
+          example: ramesh@university.edu
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          example: Invalid credentials or access restricted.

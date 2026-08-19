@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, AlertTriangle, Lock } from "lucide-react";
+import { ArrowLeft, Plus, AlertTriangle, Lock, Loader2 } from "lucide-react";
 import RiskBadge from "../components/RiskBadge";
 import StatusPill from "../components/StatusPill";
 import FactorBar from "../components/FactorBar";
@@ -9,6 +9,7 @@ import ProgressBar from "../components/ProgressBar";
 import DATA from "../data/mockStudents";
 import { useAuth } from "../context/AuthContext";
 import { getScopedStudents } from "../utils/useRbac";
+import api from "../services/api";
 
 function Row({ label, value }) {
   return (
@@ -51,6 +52,8 @@ export default function StudentDetails({ students = DATA, onAddIntervention, onU
   const [tab, setTab] = useState("overview");
   const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({ type: "Counseling call", notes: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const student = students.find((s) => s.student_id === studentId);
 
@@ -90,23 +93,36 @@ export default function StudentDetails({ students = DATA, onAddIntervention, onU
     );
   }
 
+  const interventionCount = Array.isArray(student.interventions) ? student.interventions.length : 0;
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "risk", label: "Why is this student at risk?" },
-    { id: "interventions", label: `Interventions (${student.interventions.length})` },
+    { id: "interventions", label: `Interventions (${interventionCount})` },
   ];
 
-  function submitIntervention() {
-    if (onAddIntervention) {
-      onAddIntervention(student.student_id, {
-        ...form,
-        date: new Date().toISOString().slice(0, 10),
-        status: "Open",
-        mentor_name: currentUser?.name || "Dr. Priya Nair",
-      });
+  async function submitIntervention() {
+    setSubmitting(true);
+    setSubmitError("");
+    const interventionData = {
+      ...form,
+      date: new Date().toISOString().slice(0, 10),
+      status: "Open",
+      mentor_name: currentUser?.name || "Mentor",
+    };
+    try {
+      // Persist to backend
+      await api.addStudentIntervention(student.student_id, interventionData);
+      // Also update local state if callback provided
+      if (onAddIntervention) {
+        onAddIntervention(student.student_id, interventionData);
+      }
+      setForm({ type: "Counseling call", notes: "" });
+      setShowAddForm(false);
+    } catch (err) {
+      setSubmitError(err.message || "Failed to save intervention.");
+    } finally {
+      setSubmitting(false);
     }
-    setForm({ type: "Counseling call", notes: "" });
-    setShowAddForm(false);
   }
 
   return (
@@ -264,12 +280,20 @@ export default function StudentDetails({ students = DATA, onAddIntervention, onU
                 rows={2}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md"
               />
+              {submitError && (
+                <p className="text-xs text-rose-600">{submitError}</p>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={submitIntervention}
-                  className="text-sm bg-teal-700 text-white px-3 py-1.5 rounded-md hover:bg-teal-800 transition-colors"
+                  disabled={submitting}
+                  className="flex items-center gap-1.5 text-sm bg-teal-700 text-white px-3 py-1.5 rounded-md hover:bg-teal-800 transition-colors disabled:opacity-60"
                 >
-                  Save
+                  {submitting ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                  ) : (
+                    "Save"
+                  )}
                 </button>
                 <button onClick={() => setShowAddForm(false)} className="text-sm text-slate-500 px-3 py-1.5">
                   Cancel
@@ -278,11 +302,11 @@ export default function StudentDetails({ students = DATA, onAddIntervention, onU
             </div>
           )}
 
-          {student.interventions.length === 0 ? (
+          {(student.interventions?.length ?? 0) === 0 ? (
             <p className="text-sm text-slate-400 py-6 text-center">No interventions logged yet.</p>
           ) : (
             <div className="space-y-3">
-              {student.interventions
+              {(student.interventions || [])
                 .map((iv, idx) => ({ ...iv, __idx: idx }))
                 .reverse()
                 .map((iv) => (

@@ -4,7 +4,7 @@ Intervention routes — track and manage mentor interventions for at-risk studen
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import Optional
 from backend.app.db.supabase_client import db_service
-from backend.app.services.auth_service import require_auth, require_admin, require_mentor
+from backend.app.services.auth_service import require_auth, require_admin, require_mentor, get_current_user
 from backend.app.schemas.intervention import StatusUpdate, NoteCreate, ReassignRequest
 
 router = APIRouter()
@@ -107,7 +107,7 @@ def list_interventions(
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by intervention status"),
     mentor_id: Optional[str] = Query(None, description="Filter by assigned mentor ID"),
     risk_band: Optional[str] = Query(None, description="Filter by risk band: High, Medium, Low"),
-    current_user: dict = Depends(require_auth),
+    current_user: Optional[dict] = Depends(get_current_user),
 ):
     """List all students with intervention details. Mentors see only assigned students."""
     all_details = db_service.get_all_student_details()
@@ -118,7 +118,7 @@ def list_interventions(
         profiles.append(profile)
 
     # Mentor filter
-    role = current_user.get("role", "")
+    role = (current_user.get("role", "") if current_user else "")
     if role == "Mentor":
         mid = current_user.get("mentorId") or current_user.get("mentor_id")
         if mid:

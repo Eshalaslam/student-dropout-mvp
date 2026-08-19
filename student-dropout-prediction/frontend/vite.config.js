@@ -10,6 +10,14 @@ export default defineConfig({
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            // Ensure Authorization header is forwarded
+            if (req.headers["authorization"]) {
+              proxyReq.setHeader("Authorization", req.headers["authorization"]);
+            }
+          });
+        },
       },
     },
   },

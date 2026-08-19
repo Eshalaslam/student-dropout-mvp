@@ -15,30 +15,20 @@ import BiasPrivacyAudit from "./pages/BiasPrivacyAudit";
 import ManageMentors from "./pages/ManageMentors";
 
 import DATA from "./data/mockStudents";
-import { INTERVENTION_DATA } from "./data/mockInterventions";
 import { getScopedStudents } from "./utils/useRbac";
 import api from "./services/api";
 
 function AppRoutes() {
   const { currentUser } = useAuth();
   const [students, setStudents] = useState(DATA);
-  const [interventions, setInterventions] = useState(INTERVENTION_DATA);
 
-  // Fetch live student and intervention data when logged in
+  // Fetch live student data when logged in
   useEffect(() => {
     if (currentUser) {
       api.getStudents()
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) {
             setStudents(data);
-          }
-        })
-        .catch(() => {});
-
-      api.getInterventions()
-        .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            setInterventions(data);
           }
         })
         .catch(() => {});
@@ -49,11 +39,6 @@ function AppRoutes() {
   const scopedStudents = useMemo(
     () => getScopedStudents(currentUser?.role, currentUser?.mentorName, students),
     [currentUser, students]
-  );
-
-  const scopedInterventions = useMemo(
-    () => getScopedStudents(currentUser?.role, currentUser?.mentorName, interventions),
-    [currentUser, interventions]
   );
 
   function handleAddIntervention(id, intervention) {
@@ -108,9 +93,9 @@ function AppRoutes() {
         />
         <Route
           path="/interventions"
-          element={<MentorInterventionTracking students={scopedInterventions} />}
+          element={<MentorInterventionTracking />}
         />
-        <Route path="/reports" element={<Reports students={scopedInterventions} />} />
+        <Route path="/reports" element={<Reports students={scopedStudents} />} />
         <Route
           path="/mentors"
           element={

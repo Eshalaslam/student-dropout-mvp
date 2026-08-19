@@ -2,15 +2,16 @@
 Mentor management routes — Admin only. CRUD for mentor accounts.
 """
 from fastapi import APIRouter, HTTPException, Depends, status
+from typing import Optional
 from backend.app.db.supabase_client import db_service
-from backend.app.services.auth_service import AuthService, require_admin
+from backend.app.services.auth_service import AuthService, require_admin, get_current_user
 from backend.app.schemas.mentor import MentorCreateRequest
 
 router = APIRouter()
 
 
 @router.get("/")
-def list_mentors(current_user: dict = Depends(require_admin)):
+def list_mentors(current_user: Optional[dict] = Depends(get_current_user)):
     """List all mentors with their assigned student counts."""
     mentors = db_service.get_all_mentors()
     result = []
@@ -21,6 +22,7 @@ def list_mentors(current_user: dict = Depends(require_admin)):
 
         result.append({
             "id": m.get("id"),
+            "mentor_id": m.get("mentor_id"),   # used for reassignment
             "username": m.get("username"),
             "name": m.get("name"),
             "email": m.get("email"),

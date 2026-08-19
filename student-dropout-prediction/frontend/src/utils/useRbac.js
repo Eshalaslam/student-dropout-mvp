@@ -4,16 +4,58 @@
 
 /**
  * Filter a student array to only those assigned to the current user.
- * @param {"Admin"|"Mentor"} role
- * @param {string|null}      mentorName  — the `assigned_mentor` value to match
- * @param {Array}            allStudents — full INTERVENTION_DATA array
+ * Supports:
+ *   getScopedStudents(currentUser, allStudents)
+ *   getScopedStudents(role, mentorName, allStudents)
  */
-export function getScopedStudents(role, mentorName, allStudents) {
-  if (role === "Admin" || !mentorName) return allStudents;
+export function getScopedStudents(roleOrUser, mentorNameOrStudents, maybeStudents) {
+  let role, mentorName, mentorId, allStudents;
+
+  if (typeof roleOrUser === "object" && roleOrUser !== null) {
+    const user = roleOrUser;
+    role = user.role;
+    mentorName = user.mentorName || user.name;
+    mentorId = user.mentorId;
+    allStudents = Array.isArray(mentorNameOrStudents) ? mentorNameOrStudents : [];
+  } else {
+    role = roleOrUser;
+    mentorName = mentorNameOrStudents;
+    mentorId = null;
+    allStudents = Array.isArray(maybeStudents) ? maybeStudents : [];
+  }
+
+  if (!role) return allStudents;
+  const normalizedRole = String(role).toLowerCase();
+  if (normalizedRole === "admin") return allStudents;
+
+  if (normalizedRole !== "mentor") return [];
+
   return allStudents.filter((s) => {
-    if (s.assigned_mentor) return s.assigned_mentor === mentorName;
-    const mentors = s.interventions?.map((iv) => iv.mentor_name).filter(Boolean) || [];
-    return mentors.includes(mentorName);
+    const sMentorId = s.assigned_mentor_id || s.assignedMentorId;
+    if (mentorId && sMentorId && String(sMentorId).trim() === String(mentorId).trim()) {
+      return true;
+    }
+
+    const sMentor = s.assigned_mentor || s.assignedMentor;
+    if (sMentor) {
+      if (mentorName && String(sMentor).trim().toLowerCase() === String(mentorName).trim().toLowerCase()) {
+        return true;
+      }
+      if (mentorId && String(sMentor).trim() === String(mentorId).trim()) {
+        return true;
+      }
+    }
+
+    if (Array.isArray(s.interventions)) {
+      const match = s.interventions.some(
+        (iv) =>
+          (mentorName && iv.mentor_name && String(iv.mentor_name).trim().toLowerCase() === String(mentorName).trim().toLowerCase()) ||
+          (mentorId && (iv.assigned_mentor === mentorId || iv.mentor_id === mentorId))
+      );
+      if (match) return true;
+    }
+
+    return false;
   });
 }
 
