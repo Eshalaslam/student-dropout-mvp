@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import RiskBadge from "../components/RiskBadge";
 import KpiCard from "../components/KpiCard";
-import { INTERVENTION_DATA, MENTORS } from "../data/mockInterventions";
 import { REPORT_HISTORY, INITIAL_SCHEDULED } from "../data/mockReports";
 
 const REPORT_TYPES = [
@@ -22,8 +21,7 @@ const TYPE_COLORS = {
   "audit":       { badge: "bg-violet-50 text-violet-700 border-violet-200",card: "bg-violet-50/40 border-violet-300",icon: "text-violet-600", dot: "bg-violet-400" },
 };
 const TYPE_LABELS = { "at-risk":"At-Risk Students", intervention:"Intervention Progress", "dept-trend":"Dept. Risk Trend", audit:"Full Audit" };
-const DEPARTMENTS = ["All", ...new Set(INTERVENTION_DATA.map((s) => s.department))];
-const ALL_MENTORS  = ["All", ...MENTORS.filter((m) => m !== "Unassigned"), "Unassigned"];
+// These are derived inside the component from live `students` prop — not from mock data
 const INT_STATUSES = ["All", "Not Started", "In Progress", "Resolved", "Escalated"];
 const RISK_BANDS   = ["All", "High", "Medium", "Low"];
 
@@ -107,7 +105,7 @@ function InterventionTable({ rows }) {
             <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${ST[s.intervention_status]||"bg-slate-100 text-slate-600"}`}>{s.intervention_status}</span></td>
             <td className="px-4 py-3 text-slate-500">{s.department}</td>
             <td className="px-4 py-3 font-mono text-xs text-slate-400">{s.last_updated||"--"}</td>
-            <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">{s.mentor_notes.length}</td>
+            <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">{(s.mentor_notes || []).length}</td>
           </tr>
         ))}</tbody>
       </table>
@@ -287,10 +285,12 @@ function ScheduledReports() {
 }
 
 import { useAuth } from "../context/AuthContext";
+import { useData } from "../context/DataContext";
 
 // Main page export
 export default function Reports({ students, currentUser: propUser }) {
   const { currentUser: authUser } = useAuth();
+  const { interventions: liveInterventions } = useData();
   const currentUser = propUser || authUser;
   const [reportType,setReportType] = useState("at-risk");
   const [deptFilter,setDeptFilter] = useState("All");
@@ -303,13 +303,37 @@ export default function Reports({ students, currentUser: propUser }) {
   const [copied,setCopied] = useState(false);
   const isAdmin = currentUser?.role === "Admin";
 
+  // For intervention report: use the interventions dataset (has assigned_mentor,
+  // intervention_status, mentor_notes). For other reports: use the students prop.
+  // Define this first so DEPARTMENTS and ALL_MENTORS can reference it.
+  const interventionSource = liveInterventions.length > 0 ? liveInterventions : students;
+
+  // Derive filter options from live data (not from stale mock data)
+  const DEPARTMENTS = useMemo(() => {
+    const depts = [...new Set(students.map((s) => s.department).filter(Boolean))].sort();
+    return ["All", ...depts];
+  }, [students]);
+
+  const ALL_MENTORS = useMemo(() => {
+    // Draw mentor names from interventions list (which has assigned_mentor field)
+    const mentorSet = new Set(
+      interventionSource
+        .map((s) => s.assigned_mentor || s.assignedMentor)
+        .filter((m) => m && m !== "Unassigned" && m !== "" && m !== null)
+    );
+    return ["All", ...Array.from(mentorSet).sort(), "Unassigned"];
+  }, [interventionSource]);
+
   const previewRows = useMemo(()=>{
-    const base = students.filter((s)=>{
+    // Choose the right data source based on report type
+    const source = reportType === "intervention" ? interventionSource : students;
+    const base = source.filter((s)=>{
       const mD = deptFilter==="All"||s.department===deptFilter;
       const mR = riskFilter==="All"||s.risk_category===riskFilter;
-      const mM = !isAdmin || mentorFilter==="All"||s.assigned_mentor===mentorFilter;
+      const mentorVal = s.assigned_mentor || s.assignedMentor || "Unassigned";
+      const mM = !isAdmin || mentorFilter==="All"||mentorVal===mentorFilter;
       const mS = statusFilter==="All"||s.intervention_status===statusFilter;
-      const mSr= search===""||s.student_name.toLowerCase().includes(search.toLowerCase())||s.student_id.toLowerCase().includes(search.toLowerCase());
+      const mSr= search===""||((s.student_name||"").toLowerCase().includes(search.toLowerCase())||(s.student_id||"").toLowerCase().includes(search.toLowerCase()));
       const mDt= (()=>{if(!s.last_updated)return true;if(dateFrom&&s.last_updated<dateFrom)return false;if(dateTo&&s.last_updated>dateTo)return false;return true;})();
       return mD&&mR&&mM&&mS&&mSr&&mDt;
     });
@@ -319,19 +343,20 @@ export default function Reports({ students, currentUser: propUser }) {
         if(!map[s.department])map[s.department]={dept:s.department,total:0,high:0,medium:0,low:0,probSum:0};
         const r=map[s.department];r.total++;
         if(s.risk_category==="High")r.high++;else if(s.risk_category==="Medium")r.medium++;else r.low++;
-        r.probSum+=s.dropout_probability;
+        r.probSum+=s.dropout_probability||0;
       });
       return Object.values(map).map((r)=>({...r,avgProb:r.probSum/r.total})).sort((a,b)=>b.avgProb-a.avgProb);
     }
     return base;
-  },[students,reportType,deptFilter,riskFilter,mentorFilter,statusFilter,search,dateFrom,dateTo,isAdmin]);
+  },[students,interventionSource,reportType,deptFilter,riskFilter,mentorFilter,statusFilter,search,dateFrom,dateTo,isAdmin]);
 
+  // KPIs: escalated/resolved use the interventions source
   const kpis = useMemo(()=>({
     total:students.length,
     highRisk:students.filter((s)=>s.risk_category==="High").length,
-    escalated:students.filter((s)=>s.intervention_status==="Escalated").length,
-    resolved:students.filter((s)=>s.intervention_status==="Resolved").length,
-  }),[students]);
+    escalated:interventionSource.filter((s)=>s.intervention_status==="Escalated").length,
+    resolved:interventionSource.filter((s)=>s.intervention_status==="Resolved").length,
+  }),[students,interventionSource]);
 
   function handleExportCSV(){
     const c=buildCSV(previewRows,reportType);

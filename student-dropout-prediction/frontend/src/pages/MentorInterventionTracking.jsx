@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -19,6 +19,7 @@ import KpiCard from "../components/KpiCard";
 import MentorAssignDropdown from "../components/MentorAssignDropdown";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useData } from "../context/DataContext";
 import { getScopedStudents } from "../utils/useRbac";
 
 // ─── constants ──────────────────────────────────────────────────────────────
@@ -388,11 +389,18 @@ export default function MentorInterventionTracking() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === "Admin" || currentUser?.role === "admin";
 
+  // ── Shared data from DataContext (fetched ONCE per session, not per render) ─
+  const {
+    interventions: contextInterventions,
+    interventionsLoading,
+    interventionsError,
+    refreshInterventions,
+    activeMentors,
+  } = useData();
+
   // ── State ──────────────────────────────────────────────────────────────────
+  // allStudents is seeded from context; local updates (status, notes) are overlaid
   const [allStudents, setAllStudents] = useState([]);
-  const [dbMentors, setDbMentors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [noteAdding, setNoteAdding] = useState(false);
 
@@ -408,42 +416,18 @@ export default function MentorInterventionTracking() {
   // Detail drawer
   const [activeStudent, setActiveStudent] = useState(null);
 
-  // ── Fetch interventions from backend ───────────────────────────────────────
-  const fetchInterventions = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await api.getInterventions();
-      if (Array.isArray(data)) {
-        setAllStudents(data);
-      }
-    } catch (err) {
-      if (err.status === 401) {
-        setError("Session expired. Please log out and log back in.");
-      } else {
-        setError(`Failed to load interventions: ${err.message || err.status || "Unknown error"}`);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch mentors list (for filter dropdown and reassignment)
-  const fetchMentors = useCallback(async () => {
-    try {
-      const data = await api.getMentors();
-      if (Array.isArray(data)) {
-        setDbMentors(data.filter((m) => m.status !== "Inactive"));
-      }
-    } catch {
-      // non-fatal
-    }
-  }, []);
-
+  // Sync allStudents whenever context data updates (e.g., after refresh)
   useEffect(() => {
-    fetchInterventions();
-    fetchMentors();
-  }, [fetchInterventions, fetchMentors]);
+    if (Array.isArray(contextInterventions)) {
+      setAllStudents(contextInterventions);
+    }
+  }, [contextInterventions]);
+
+  // Convenience aliases
+  const loading = interventionsLoading;
+  const error = interventionsError;
+  const dbMentors = activeMentors || [];
+  const fetchInterventions = refreshInterventions;
 
   // ── 1. CENTRALIZED DATA SCOPING ───────────────────────────────────────────
   // Uses getScopedStudents from useRbac.js to enforce role-based access

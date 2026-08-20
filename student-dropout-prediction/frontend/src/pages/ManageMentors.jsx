@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import KpiCard from "../components/KpiCard";
 import api from "../services/api";
-
+import { useData } from "../context/DataContext";
 import { USERS } from "../data/mockAuth";
 
 // Helper for generating secure temporary passwords
@@ -31,34 +31,33 @@ function generateTempPassword() {
 }
 
 export default function ManageMentors() {
-  // Fetch mentors from DB
-  const [dbMentors, setDbMentors] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Read mentors from shared DataContext — already fetched once on login
+  const {
+    mentors: ctxMentors,
+    mentorsLoading,
+    refreshMentors: ctxRefreshMentors,
+  } = useData();
+
+  const [localMentors, setLocalMentors] = useState([]);
+  const [loading, setLoading] = useState(mentorsLoading);
   const [loadError, setLoadError] = useState("");
 
+  // Sync local state whenever context updates
+  useEffect(() => {
+    if (Array.isArray(ctxMentors) && ctxMentors.length > 0) {
+      setLocalMentors(ctxMentors);
+    } else {
+      setLocalMentors(USERS.filter((u) => u.role === "Mentor"));
+    }
+    setLoading(false);
+  }, [ctxMentors]);
+
+  // refreshMentors re-fetches via context (shared, not per-page)
   function refreshMentors() {
     setLoading(true);
     setLoadError("");
-    api.getMentors()
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setDbMentors(data);
-        } else {
-          // Fallback to mock mentors if empty
-          const fallback = USERS.filter((u) => u.role === "Mentor");
-          setDbMentors(fallback);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to load mentors:", err);
-        const fallback = USERS.filter((u) => u.role === "Mentor");
-        setDbMentors(fallback);
-        setLoadError(err?.message || "Failed to load mentors from database. Showing default mentors.");
-      })
-      .finally(() => setLoading(false));
+    ctxRefreshMentors();
   }
-
-  useEffect(() => { refreshMentors(); }, []);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -82,7 +81,7 @@ export default function ManageMentors() {
   const [formError, setFormError] = useState("");
 
   // Use DB mentors (or fallback)
-  const mentors = dbMentors.length > 0 ? dbMentors : USERS.filter((u) => u.role === "Mentor");
+  const mentors = localMentors.length > 0 ? localMentors : USERS.filter((u) => u.role === "Mentor");
 
   // Filtered mentors list
   const filteredMentors = useMemo(() => {
