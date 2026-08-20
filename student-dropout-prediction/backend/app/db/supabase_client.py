@@ -217,7 +217,11 @@ class DatabaseService:
                     """INSERT INTO users (id, email, password_hash, full_name, student_id,
                        role, username, mentor_id, mentor_name, status, created_at)
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                       ON CONFLICT (id) DO NOTHING
+                       ON CONFLICT (email) DO UPDATE SET
+                           full_name = EXCLUDED.full_name,
+                           student_id = EXCLUDED.student_id,
+                           role = EXCLUDED.role,
+                           status = EXCLUDED.status
                        RETURNING *""",
                     (user_record["id"], user_record["email"], user_record["password_hash"],
                      user_record["full_name"], user_record["student_id"], user_record["role"],
@@ -228,6 +232,7 @@ class DatabaseService:
                     return row
             except Exception as e:
                 print(f"DB create_user error: {e}")
+                raise e
 
         _in_memory_store.users[user_record["email"]] = user_record
         return user_record
@@ -317,6 +322,7 @@ class DatabaseService:
                     return row
             except Exception as e:
                 print(f"DB save_student_details error: {e}")
+                raise e
 
         _in_memory_store.student_details[student_id] = record
         return record
