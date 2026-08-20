@@ -165,25 +165,6 @@ CREATE TABLE IF NOT EXISTS public.privacy_docs (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 13. Fairness Results Table
-CREATE TABLE IF NOT EXISTS public.fairness_results (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    attribute TEXT NOT NULL,
-    threshold NUMERIC,
-    overall JSONB DEFAULT '{}'::jsonb,
-    groups JSONB DEFAULT '[]'::jsonb,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 14. Feature Influence Table
-CREATE TABLE IF NOT EXISTS public.feature_influence (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    feature TEXT NOT NULL,
-    sensitive BOOLEAN DEFAULT false,
-    used_in_model BOOLEAN DEFAULT true,
-    audit_only BOOLEAN DEFAULT false
-);
-
 -- 15. Predictions Table (ML inference history & risk tracking)
 CREATE TABLE IF NOT EXISTS public.predictions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -209,5 +190,3 @@ CREATE INDEX IF NOT EXISTS idx_mentor_assignments_student_id ON public.mentor_as
 CREATE INDEX IF NOT EXISTS idx_mentor_notes_student_id ON public.mentor_notes (student_id);
 CREATE INDEX IF NOT EXISTS idx_intervention_notes_student_id ON public.intervention_notes (student_id);
 CREATE INDEX IF NOT EXISTS idx_reports_date ON public.reports (date DESC);
-CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON public.access_logs (timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_fairness_results_attribute ON public.fairness_results (attribute);

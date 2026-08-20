@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, ClipboardList, GraduationCap, ChevronRight, ShieldAlert, FileBarChart, UserCog } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, GraduationCap, ChevronRight, FileBarChart, UserCog } from "lucide-react";
 import { ROLE_STYLES } from "../utils/useRbac";
 import { useAuth } from "../context/AuthContext";
 
@@ -9,7 +9,6 @@ const NAV_ITEMS = [
   { path: "/interventions", label: "Mentor Interventions",  icon: ClipboardList,   description: "Follow-up tracking", section: "main"  },
   { path: "/reports",       label: "Reports",               icon: FileBarChart,    description: "Generate & export",  section: "main"  },
   { path: "/mentors",       label: "Manage Mentors",        icon: UserCog,         description: "Accounts & access",  section: "admin", adminOnly: true },
-  { path: "/audit",         label: "Bias & Privacy Audit",  icon: ShieldAlert,     description: "Fairness & compliance", section: "admin", adminOnly: true },
 ];
 
 const SECTION_LABELS = { main: "Navigation", admin: "Admin" };

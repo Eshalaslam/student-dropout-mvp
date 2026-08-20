@@ -10,6 +10,7 @@ import ProgressBar from "../components/ProgressBar";
 import MentorAssignDropdown from "../components/MentorAssignDropdown";
 import DATA from "../data/mockStudents";
 import { useAuth } from "../context/AuthContext";
+import { useData } from "../context/DataContext";
 import { getScopedStudents } from "../utils/useRbac";
 import api from "../services/api";
 
@@ -57,17 +58,31 @@ export default function StudentDetails({
   const { studentId } = useParams();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { updateStudentLocally } = useData();
   const isAdmin = currentUser?.role === "Admin" || currentUser?.role === "admin";
 
   const [tab, setTab] = useState("overview");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [form, setForm] = useState({ type: "Counseling call", notes: "" });
+  const [form, setForm] = useState({
+    type: "",
+    priority: "High",
+    description: "",
+    status: "Not Started",
+    followUpRequired: false,
+    followUpDate: "",
+    notes: "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [fetchedStudent, setFetchedStudent] = useState(null);
   const [loading, setLoading] = useState(false);
   const [predictionHistory, setPredictionHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // 1. Flexible student matching in prop array
   const studentInProp = useMemo(() => {
@@ -110,7 +125,7 @@ export default function StudentDetails({
   const student = studentInProp || fetchedStudent;
 
   // 3. Fetch prediction risk history for this student
-  useEffect(() => {
+  const fetchPredictionHistory = () => {
     const sId = student?.student_id || studentId;
     if (sId) {
       setLoadingHistory(true);
@@ -123,7 +138,11 @@ export default function StudentDetails({
         .catch(() => setPredictionHistory([]))
         .finally(() => setLoadingHistory(false));
     }
-  }, [student?.student_id, studentId]);
+  };
+
+  useEffect(() => {
+    fetchPredictionHistory();
+  }, [student?.student_id, studentId, historyVersion]);
 
   if (loading) {
     return (
@@ -187,19 +206,152 @@ export default function StudentDetails({
   const attendancePercentage = typeof student.attendance_percentage === "number" ? student.attendance_percentage : (student.attendance || 0);
   const riskFactors = Array.isArray(student.risk_factors) ? student.risk_factors : [];
 
+  function inputClass(isInvalid) {
+    return `w-full px-3 py-2 text-sm border rounded-md bg-white ${isInvalid ? "border-rose-400 bg-rose-50 focus:ring-rose-500" : "border-slate-200"}`;
+  }
+
+  function startEditing() {
+    setEditForm({
+      marital_status: student.marital_status ?? 1,
+      application_mode: student.application_mode ?? 1,
+      application_order: student.application_order ?? 1,
+      course: student.course ?? 9254,
+      daytime_attendance: student.daytime_attendance ?? 1,
+      age_at_enrollment: student.age_at_enrollment ?? 20,
+      previous_qualification: student.previous_qualification ?? 1,
+      previous_qualification_grade: student.previous_qualification_grade ?? 130,
+      mothers_qualification: student.mothers_qualification ?? 1,
+      fathers_qualification: student.fathers_qualification ?? 1,
+      mothers_occupation: student.mothers_occupation ?? 5,
+      fathers_occupation: student.fathers_occupation ?? 5,
+      admission_grade: student.admission_grade ?? 125,
+      displaced: student.displaced ?? 0,
+      special_needs: student.special_needs ?? 0,
+      debtor: student.debtor ?? 0,
+      tuition_fees_current: student.tuition_fees_current ?? 1,
+      gender: student.gender ?? 1,
+      scholarship_holder: student.scholarship_holder ?? 0,
+      units_credited_sem1: student.units_credited_sem1 ?? 0,
+      units_enrolled_sem1: student.units_enrolled_sem1 ?? 6,
+      evaluations_sem1: student.evaluations_sem1 ?? 6,
+      units_approved_sem1: student.units_approved_sem1 ?? 6,
+      grade_sem1: student.grade_sem1 ?? 13.5,
+      no_evaluations_sem1: student.no_evaluations_sem1 ?? 0,
+      units_credited_sem2: student.units_credited_sem2 ?? 0,
+      units_enrolled_sem2: student.units_enrolled_sem2 ?? 6,
+      evaluations_sem2: student.evaluations_sem2 ?? 6,
+      units_approved_sem2: student.units_approved_sem2 ?? 6,
+      grade_sem2: student.grade_sem2 ?? 14.0,
+      no_evaluations_sem2: student.no_evaluations_sem2 ?? 0,
+      unemployment_rate: student.unemployment_rate ?? 10.8,
+      inflation_rate: student.inflation_rate ?? 1.4,
+      gdp: student.gdp ?? 1.74,
+      attendance_percentage: student.attendance_percentage ?? "",
+    });
+    setEditing(true);
+    setSaveError("");
+  }
+
+  function validateForm() {
+    const errors = [];
+    const check = (v, min, max, label) => {
+      const n = Number(v);
+      if (v !== "" && v !== null && v !== undefined && (isNaN(n) || n < min || n > max))
+        errors.push(`${label} must be between ${min} and ${max}.`);
+    };
+    check(editForm.admission_grade, 0, 200, "Admission grade");
+    check(editForm.previous_qualification_grade, 0, 200, "Previous qualification grade");
+    check(editForm.age_at_enrollment, 15, 80, "Age at enrollment");
+    check(editForm.grade_sem1, 0, 20, "Sem 1 grade");
+    check(editForm.grade_sem2, 0, 20, "Sem 2 grade");
+    check(editForm.attendance_percentage, 0, 100, "Attendance");
+    check(editForm.application_order, 0, 9, "Application order");
+    check(editForm.unemployment_rate, 0, 100, "Unemployment rate");
+    check(editForm.inflation_rate, -50, 50, "Inflation rate");
+    return errors;
+  }
+
+  async function saveDetails() {
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setSaveError(errors.join(" "));
+      return;
+    }
+    setSavingDetails(true);
+    setSaveError("");
+    try {
+      const num = (v, def) => (v === "" || v === null || v === undefined ? def : Number(v));
+      const payload = {
+        marital_status: num(editForm.marital_status, 1),
+        application_mode: num(editForm.application_mode, 1),
+        application_order: num(editForm.application_order, 1),
+        course: num(editForm.course, 9254),
+        daytime_attendance: num(editForm.daytime_attendance, 1),
+        age_at_enrollment: num(editForm.age_at_enrollment, 20),
+        previous_qualification: num(editForm.previous_qualification, 1),
+        previous_qualification_grade: num(editForm.previous_qualification_grade, 130),
+        mothers_qualification: num(editForm.mothers_qualification, 1),
+        fathers_qualification: num(editForm.fathers_qualification, 1),
+        mothers_occupation: num(editForm.mothers_occupation, 5),
+        fathers_occupation: num(editForm.fathers_occupation, 5),
+        admission_grade: Math.min(200, Math.max(0, num(editForm.admission_grade, 125))),
+        displaced: num(editForm.displaced, 0),
+        special_needs: num(editForm.special_needs, 0),
+        debtor: num(editForm.debtor, 0),
+        tuition_fees_current: num(editForm.tuition_fees_current, 1),
+        gender: num(editForm.gender, 1),
+        scholarship_holder: num(editForm.scholarship_holder, 0),
+        units_credited_sem1: num(editForm.units_credited_sem1, 0),
+        units_enrolled_sem1: num(editForm.units_enrolled_sem1, 6),
+        evaluations_sem1: num(editForm.evaluations_sem1, 6),
+        units_approved_sem1: num(editForm.units_approved_sem1, 6),
+        grade_sem1: Math.min(20, Math.max(0, num(editForm.grade_sem1, 13.5))),
+        no_evaluations_sem1: num(editForm.no_evaluations_sem1, 0),
+        units_credited_sem2: num(editForm.units_credited_sem2, 0),
+        units_enrolled_sem2: num(editForm.units_enrolled_sem2, 6),
+        evaluations_sem2: num(editForm.evaluations_sem2, 6),
+        units_approved_sem2: num(editForm.units_approved_sem2, 6),
+        grade_sem2: Math.min(20, Math.max(0, num(editForm.grade_sem2, 14))),
+        no_evaluations_sem2: num(editForm.no_evaluations_sem2, 0),
+        unemployment_rate: num(editForm.unemployment_rate, 10.8),
+        inflation_rate: num(editForm.inflation_rate, 1.4),
+        gdp: num(editForm.gdp, 1.74),
+        attendance_percentage: editForm.attendance_percentage === "" ? null : Math.min(100, Math.max(0, num(editForm.attendance_percentage, null))),
+      };
+      await api.saveStudentDetails(student.student_id, payload);
+      updateStudentLocally(student.student_id, payload);
+      if (fetchedStudent) {
+        setFetchedStudent((prev) => ({ ...prev, ...payload }));
+      }
+      setEditing(false);
+      setHistoryVersion((v) => v + 1);
+    } catch (err) {
+      setSaveError(err.message || "Failed to save details.");
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
   async function submitIntervention() {
     setSubmitting(true);
     setSubmitError("");
+    const parts = [];
+    if (form.description) parts.push(form.description);
+    if (form.notes) parts.push(`Notes: ${form.notes}`);
+    if (form.followUpRequired && form.followUpDate) parts.push(`Follow-up: ${form.followUpDate}`);
+    const combinedNotes = parts.join("\n") || "";
     const interventionData = {
-      ...form,
+      type: form.type,
+      notes: combinedNotes,
       date: new Date().toISOString().slice(0, 10),
-      status: "Open",
+      status: form.status,
       mentor_name: currentUser?.name || "Mentor",
+      priority: form.priority,
+      follow_up_required: form.followUpRequired,
+      follow_up_date: form.followUpDate || null,
     };
     try {
-      // Persist to backend
       await api.addStudentIntervention(student.student_id, interventionData);
-      // Update local state if callback provided
       if (onAddIntervention) {
         onAddIntervention(student.student_id, interventionData);
       }
@@ -209,8 +361,17 @@ export default function StudentDetails({
           interventions: [...(prev.interventions || []), interventionData],
         }));
       }
-      setForm({ type: "Counseling call", notes: "" });
+      setForm({
+        type: "",
+        priority: "High",
+        description: "",
+        status: "Not Started",
+        followUpRequired: false,
+        followUpDate: "",
+        notes: "",
+      });
       setShowAddForm(false);
+      setHistoryVersion((v) => v + 1);
     } catch (err) {
       setSubmitError(err.message || "Failed to save intervention.");
     } finally {
@@ -266,70 +427,297 @@ export default function StudentDetails({
 
       {/* Overview tab */}
       {tab === "overview" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div className="bg-white border border-slate-200 rounded-md p-4">
-            <h3 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Academic performance</h3>
-            <dl className="space-y-3">
-              <Row label="Admission grade" value={student.admission_grade} />
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <dt className="text-slate-500">Approval rate</dt>
-                  <dd className="font-mono text-slate-800">{Math.round(approvalRate * 100)}%</dd>
-                </div>
-                <ProgressBar value={approvalRate * 100} color={approvalRateColor(approvalRate)} />
-              </div>
-              <Row
-                label="Sem 1 approved / enrolled"
-                value={`${student.curricular_units_1st_sem_approved ?? 0} / ${student.curricular_units_1st_sem_enrolled ?? 0}`}
-              />
-              <Row
-                label="Sem 2 approved / enrolled"
-                value={`${student.curricular_units_2nd_sem_approved ?? 0} / ${student.curricular_units_2nd_sem_enrolled ?? 0}`}
-              />
-              <Row label="Failed units" value={student.curricular_units_failed ?? 0} />
-            </dl>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-md p-4">
-            <h3 className="text-xs uppercase tracking-wide text-slate-400 mb-3 flex items-center">
-              Attendance <SimTag />
-            </h3>
-            <div className="text-3xl font-mono font-semibold text-slate-900">{attendancePercentage}%</div>
-            <div className="mt-3">
-              <ProgressBar value={attendancePercentage} color={attendanceColor(attendancePercentage)} />
+        <div className="space-y-4">
+          {!editing && (
+            <div className="flex justify-end">
+              <button
+                onClick={startEditing}
+                className="text-sm bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors"
+              >
+                Edit Details
+              </button>
             </div>
-            <p className="text-xs text-slate-400 mt-3">Simulated for this demo — not part of the UCI dataset.</p>
-          </div>
+          )}
 
-          <div className="bg-white border border-slate-200 rounded-md p-4">
-            <h3 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Student profile</h3>
-            <dl className="space-y-2.5">
-              <Row label="Age at enrollment" value={student.age_at_enrollment} />
-              <div className="flex justify-between items-center text-sm">
-                <dt className="text-slate-500">Scholarship holder</dt>
-                <dd>
-                  <BooleanBadge value={student.scholarship_holder} trueLabel="Yes" falseLabel="No" />
-                </dd>
+          {editing && (
+            <div className="bg-white border border-slate-200 rounded-md p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-slate-800">Edit Student Details</h3>
+                <button onClick={() => setEditing(false)} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <dt className="text-slate-500">Tuition fees</dt>
-                <dd>
-                  <BooleanBadge value={student.tuition_fees_up_to_date} trueLabel="Up to date" falseLabel="Overdue" />
-                </dd>
+
+              <div>
+                <h4 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Personal & Application</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Marital Status</label>
+                    <select value={editForm.marital_status} onChange={(e) => setEditForm({ ...editForm, marital_status: Number(e.target.value) })} className={inputClass()}>
+                      <option value={1}>Single</option><option value={2}>Married</option><option value={3}>Widower</option><option value={4}>Divorced</option><option value={5}>Facto Union</option><option value={6}>Legally Separated</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Gender</label>
+                    <select value={editForm.gender} onChange={(e) => setEditForm({ ...editForm, gender: Number(e.target.value) })} className={inputClass()}>
+                      <option value={0}>Female</option><option value={1}>Male</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Age at Enrollment</label>
+                    <input type="number" min="15" max="80" value={editForm.age_at_enrollment} onChange={(e) => setEditForm({ ...editForm, age_at_enrollment: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Attendance Mode</label>
+                    <select value={editForm.daytime_attendance} onChange={(e) => setEditForm({ ...editForm, daytime_attendance: Number(e.target.value) })} className={inputClass()}>
+                      <option value={1}>Daytime</option><option value={0}>Evening</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Application Mode</label>
+                    <input type="number" min="1" max="57" value={editForm.application_mode} onChange={(e) => setEditForm({ ...editForm, application_mode: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Application Order (0-9)</label>
+                    <input type="number" min="0" max="9" value={editForm.application_order} onChange={(e) => setEditForm({ ...editForm, application_order: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Course Code</label>
+                    <input type="number" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Previous Qualification Code</label>
+                    <input type="number" min="1" max="43" value={editForm.previous_qualification} onChange={(e) => setEditForm({ ...editForm, previous_qualification: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Prev. Qualification Grade (0-200)</label>
+                    <input type="number" step="0.1" min="0" max="200" value={editForm.previous_qualification_grade} onChange={(e) => setEditForm({ ...editForm, previous_qualification_grade: e.target.value })} className={inputClass()} />
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between items-center text-sm pt-1 border-t border-slate-100">
-                <dt className="text-slate-500 font-medium">Assigned Mentor</dt>
-                <dd>
-                  <MentorAssignDropdown
-                    studentId={student.student_id}
-                    value={student.assigned_mentor || student.assigned_mentor_id}
-                    onAssign={onAssignMentor}
-                    isAdmin={isAdmin}
+
+              <div>
+                <h4 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Family Background</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Mother's Qualification</label>
+                    <input type="number" min="1" max="44" value={editForm.mothers_qualification} onChange={(e) => setEditForm({ ...editForm, mothers_qualification: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Father's Qualification</label>
+                    <input type="number" min="1" max="44" value={editForm.fathers_qualification} onChange={(e) => setEditForm({ ...editForm, fathers_qualification: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Mother's Occupation</label>
+                    <input type="number" min="0" max="194" value={editForm.mothers_occupation} onChange={(e) => setEditForm({ ...editForm, mothers_occupation: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Father's Occupation</label>
+                    <input type="number" min="0" max="195" value={editForm.fathers_occupation} onChange={(e) => setEditForm({ ...editForm, fathers_occupation: e.target.value })} className={inputClass()} />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Financial & Status</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Admission Grade (0-200)</label>
+                    <input type="number" step="0.1" min="0" max="200" value={editForm.admission_grade} onChange={(e) => setEditForm({ ...editForm, admission_grade: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Attendance %</label>
+                    <input type="number" min="0" max="100" value={editForm.attendance_percentage} onChange={(e) => setEditForm({ ...editForm, attendance_percentage: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Tuition Fees</label>
+                    <select value={editForm.tuition_fees_current} onChange={(e) => setEditForm({ ...editForm, tuition_fees_current: Number(e.target.value) })} className={inputClass()}>
+                      <option value={1}>Up to Date</option><option value={0}>Overdue</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Scholarship</label>
+                    <select value={editForm.scholarship_holder} onChange={(e) => setEditForm({ ...editForm, scholarship_holder: Number(e.target.value) })} className={inputClass()}>
+                      <option value={0}>No</option><option value={1}>Yes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Displaced</label>
+                    <select value={editForm.displaced} onChange={(e) => setEditForm({ ...editForm, displaced: Number(e.target.value) })} className={inputClass()}>
+                      <option value={0}>No</option><option value={1}>Yes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Special Needs</label>
+                    <select value={editForm.special_needs} onChange={(e) => setEditForm({ ...editForm, special_needs: Number(e.target.value) })} className={inputClass()}>
+                      <option value={0}>No</option><option value={1}>Yes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Debtor</label>
+                    <select value={editForm.debtor} onChange={(e) => setEditForm({ ...editForm, debtor: Number(e.target.value) })} className={inputClass()}>
+                      <option value={0}>No</option><option value={1}>Yes</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Semester 1 Performance</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units Credited</label>
+                    <input type="number" min="0" value={editForm.units_credited_sem1} onChange={(e) => setEditForm({ ...editForm, units_credited_sem1: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units Enrolled</label>
+                    <input type="number" min="0" value={editForm.units_enrolled_sem1} onChange={(e) => setEditForm({ ...editForm, units_enrolled_sem1: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units Evaluated</label>
+                    <input type="number" min="0" value={editForm.evaluations_sem1} onChange={(e) => setEditForm({ ...editForm, evaluations_sem1: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units Approved</label>
+                    <input type="number" min="0" value={editForm.units_approved_sem1} onChange={(e) => setEditForm({ ...editForm, units_approved_sem1: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Average Grade (0-20)</label>
+                    <input type="number" step="0.1" min="0" max="20" value={editForm.grade_sem1} onChange={(e) => setEditForm({ ...editForm, grade_sem1: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units w/o Evaluations</label>
+                    <input type="number" min="0" value={editForm.no_evaluations_sem1} onChange={(e) => setEditForm({ ...editForm, no_evaluations_sem1: e.target.value })} className={inputClass()} />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Semester 2 Performance</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units Credited</label>
+                    <input type="number" min="0" value={editForm.units_credited_sem2} onChange={(e) => setEditForm({ ...editForm, units_credited_sem2: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units Enrolled</label>
+                    <input type="number" min="0" value={editForm.units_enrolled_sem2} onChange={(e) => setEditForm({ ...editForm, units_enrolled_sem2: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units Evaluated</label>
+                    <input type="number" min="0" value={editForm.evaluations_sem2} onChange={(e) => setEditForm({ ...editForm, evaluations_sem2: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units Approved</label>
+                    <input type="number" min="0" value={editForm.units_approved_sem2} onChange={(e) => setEditForm({ ...editForm, units_approved_sem2: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Average Grade (0-20)</label>
+                    <input type="number" step="0.1" min="0" max="20" value={editForm.grade_sem2} onChange={(e) => setEditForm({ ...editForm, grade_sem2: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Units w/o Evaluations</label>
+                    <input type="number" min="0" value={editForm.no_evaluations_sem2} onChange={(e) => setEditForm({ ...editForm, no_evaluations_sem2: e.target.value })} className={inputClass()} />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Macroeconomic Context</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Unemployment Rate (%)</label>
+                    <input type="number" step="0.1" min="0" value={editForm.unemployment_rate} onChange={(e) => setEditForm({ ...editForm, unemployment_rate: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Inflation Rate (%)</label>
+                    <input type="number" step="0.1" value={editForm.inflation_rate} onChange={(e) => setEditForm({ ...editForm, inflation_rate: e.target.value })} className={inputClass()} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">GDP Growth (%)</label>
+                    <input type="number" step="0.01" value={editForm.gdp} onChange={(e) => setEditForm({ ...editForm, gdp: e.target.value })} className={inputClass()} />
+                  </div>
+                </div>
+              </div>
+
+              {saveError && <p className="text-xs text-rose-600">{saveError}</p>}
+
+              <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+                <button onClick={() => setEditing(false)} className="text-sm text-slate-500 px-4 py-2 rounded-md hover:bg-slate-100 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={saveDetails} disabled={savingDetails} className="flex items-center gap-1.5 text-sm bg-teal-700 text-white px-4 py-2 rounded-md hover:bg-teal-800 transition-colors disabled:opacity-60">
+                  {savingDetails ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : "Save Details"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!editing && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="bg-white border border-slate-200 rounded-md p-4">
+                <h3 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Academic performance</h3>
+                <dl className="space-y-3">
+                  <Row label="Admission grade" value={student.admission_grade} />
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <dt className="text-slate-500">Approval rate</dt>
+                      <dd className="font-mono text-slate-800">{Math.round(approvalRate * 100)}%</dd>
+                    </div>
+                    <ProgressBar value={approvalRate * 100} color={approvalRateColor(approvalRate)} />
+                  </div>
+                  <Row
+                    label="Sem 1 approved / enrolled"
+                    value={`${student.curricular_units_1st_sem_approved ?? 0} / ${student.curricular_units_1st_sem_enrolled ?? 0}`}
                   />
-                </dd>
+                  <Row
+                    label="Sem 2 approved / enrolled"
+                    value={`${student.curricular_units_2nd_sem_approved ?? 0} / ${student.curricular_units_2nd_sem_enrolled ?? 0}`}
+                  />
+                  <Row label="Failed units" value={student.curricular_units_failed ?? 0} />
+                </dl>
               </div>
-            </dl>
-          </div>
+
+              <div className="bg-white border border-slate-200 rounded-md p-4">
+                <h3 className="text-xs uppercase tracking-wide text-slate-400 mb-3 flex items-center">
+                  Attendance <SimTag />
+                </h3>
+                <div className="text-3xl font-mono font-semibold text-slate-900">{attendancePercentage}%</div>
+                <div className="mt-3">
+                  <ProgressBar value={attendancePercentage} color={attendanceColor(attendancePercentage)} />
+                </div>
+                <p className="text-xs text-slate-400 mt-3">Simulated for this demo — not part of the UCI dataset.</p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-md p-4">
+                <h3 className="text-xs uppercase tracking-wide text-slate-400 mb-3">Student profile</h3>
+                <dl className="space-y-2.5">
+                  <Row label="Age at enrollment" value={student.age_at_enrollment} />
+                  <div className="flex justify-between items-center text-sm">
+                    <dt className="text-slate-500">Scholarship holder</dt>
+                    <dd>
+                      <BooleanBadge value={student.scholarship_holder} trueLabel="Yes" falseLabel="No" />
+                    </dd>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <dt className="text-slate-500">Tuition fees</dt>
+                    <dd>
+                      <BooleanBadge value={student.tuition_fees_up_to_date} trueLabel="Up to date" falseLabel="Overdue" />
+                    </dd>
+                  </div>
+                  <div className="flex justify-between items-center text-sm pt-1 border-t border-slate-100">
+                    <dt className="text-slate-500 font-medium">Assigned Mentor</dt>
+                    <dd>
+                      <MentorAssignDropdown
+                        studentId={student.student_id}
+                        value={student.assigned_mentor || student.assigned_mentor_id}
+                        onAssign={onAssignMentor}
+                        isAdmin={isAdmin}
+                      />
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -479,40 +867,115 @@ export default function StudentDetails({
           </div>
 
           {showAddForm && (
-            <div className="border border-slate-200 rounded-md p-4 mb-4 bg-slate-50 space-y-3">
-              <select
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white"
-              >
-                <option>Counseling call</option>
-                <option>Academic tutoring referral</option>
-                <option>Financial aid referral</option>
-              </select>
-              <textarea
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="Notes"
-                rows={2}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md"
-              />
+            <div className="border border-slate-200 rounded-md p-5 mb-4 bg-slate-50 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Student</label>
+                <div className="text-sm font-medium text-slate-800">{student.student_name || student.student_id}</div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Intervention Type</label>
+                  <input
+                    type="text"
+                    value={form.type}
+                    onChange={(e) => setForm({ ...form, type: e.target.value })}
+                    placeholder="e.g. Academic Counselling"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Priority</label>
+                  <select
+                    value={form.priority}
+                    onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white"
+                  >
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Describe the intervention purpose..."
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white"
+                  >
+                    <option>Not Started</option>
+                    <option>In Progress</option>
+                    <option>Resolved</option>
+                    <option>Escalated</option>
+                  </select>
+                </div>
+                <div className="flex items-end gap-6">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none pb-2">
+                    <input
+                      type="checkbox"
+                      checked={form.followUpRequired}
+                      onChange={(e) => setForm({ ...form, followUpRequired: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    Follow-up Required
+                  </label>
+                  {form.followUpRequired && (
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Follow-up Date</label>
+                      <input
+                        type="date"
+                        value={form.followUpDate}
+                        onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Notes</label>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  placeholder="Additional notes..."
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white"
+                />
+              </div>
+
               {submitError && (
                 <p className="text-xs text-rose-600">{submitError}</p>
               )}
-              <div className="flex gap-2">
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setShowAddForm(false)} className="text-sm text-slate-500 px-4 py-2 rounded-md hover:bg-slate-100 transition-colors">
+                  Cancel
+                </button>
                 <button
                   onClick={submitIntervention}
                   disabled={submitting}
-                  className="flex items-center gap-1.5 text-sm bg-teal-700 text-white px-3 py-1.5 rounded-md hover:bg-teal-800 transition-colors disabled:opacity-60"
+                  className="flex items-center gap-1.5 text-sm bg-teal-700 text-white px-4 py-2 rounded-md hover:bg-teal-800 transition-colors disabled:opacity-60"
                 >
                   {submitting ? (
                     <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
                   ) : (
                     "Save"
                   )}
-                </button>
-                <button onClick={() => setShowAddForm(false)} className="text-sm text-slate-500 px-3 py-1.5">
-                  Cancel
                 </button>
               </div>
             </div>

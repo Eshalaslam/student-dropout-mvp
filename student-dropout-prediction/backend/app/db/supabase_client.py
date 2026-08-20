@@ -44,8 +44,6 @@ class InMemoryStore:
         self.report_schedules: List[Dict[str, Any]] = []
         self.access_logs: List[Dict[str, Any]] = []
         self.privacy_docs: List[Dict[str, Any]] = []
-        self.fairness_results: List[Dict[str, Any]] = []
-        self.feature_influences: List[Dict[str, Any]] = []
 
 
 _in_memory_store = InMemoryStore()
@@ -84,7 +82,7 @@ class DatabaseService:
         if HAS_PSYCOPG2 and DATABASE_URL:
             try:
                 min_conn = int(os.getenv("MIN_CONNECTIONS", "1"))
-                max_conn = int(os.getenv("MAX_CONNECTIONS", "10"))
+                max_conn = int(os.getenv("MAX_CONNECTIONS", "3"))
                 self._pool = pool.ThreadedConnectionPool(
                     minconn=min_conn,
                     maxconn=max_conn,
@@ -1324,121 +1322,6 @@ class DatabaseService:
 
             _in_memory_store.privacy_docs.append(record)
             return record
-
-    # =========================================================================
-    # FAIRNESS RESULTS
-    # =========================================================================
-
-    def save_fairness_result(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Save a fairness audit result."""
-        now_iso = _now_iso()
-        record = {
-            "id": data.get("id") or str(uuid.uuid4()),
-            "attribute": data["attribute"],
-            "threshold": data.get("threshold"),
-            "overall": data.get("overall", {}),
-            "groups": data.get("groups", []),
-            "created_at": now_iso,
-        }
-
-        if self.is_supabase_connected:
-            try:
-                row = self._execute_returning(
-                    """INSERT INTO fairness_results (id, attribute, threshold, overall, groups, created_at)
-                       VALUES (%s,%s,%s,%s,%s,%s) RETURNING *""",
-                    (record["id"], record["attribute"], record["threshold"],
-                     Json(record["overall"]), Json(record["groups"]), record["created_at"]),
-                )
-                if row:
-                    return row
-            except Exception as e:
-                print(f"DB save_fairness_result error: {e}")
-
-        _in_memory_store.fairness_results.append(record)
-        return record
-
-    def get_fairness_result(self, attribute: str) -> Optional[Dict[str, Any]]:
-        """Get the latest fairness result for an attribute."""
-        if self.is_supabase_connected:
-            try:
-                rows = self._query(
-                    "SELECT * FROM fairness_results WHERE attribute = %s ORDER BY created_at DESC LIMIT 1",
-                    (attribute,),
-                )
-                if rows:
-                    return rows[0]
-            except Exception as e:
-                print(f"DB get_fairness_result error: {e}")
-
-        matching = [r for r in _in_memory_store.fairness_results if r["attribute"] == attribute]
-        if matching:
-            matching.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-            return matching[0]
-        return None
-
-    def get_all_fairness_results(self) -> List[Dict[str, Any]]:
-        """Get all fairness results."""
-        if self.is_supabase_connected:
-            try:
-                return self._query("SELECT * FROM fairness_results ORDER BY created_at DESC")
-            except Exception as e:
-                print(f"DB get_all_fairness_results error: {e}")
-
-        results = list(_in_memory_store.fairness_results)
-        results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-        return results
-
-    # =========================================================================
-    # FEATURE INFLUENCE
-    # =========================================================================
-
-    def save_feature_influences(self, features: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Save feature influence records (replaces existing)."""
-        if self.is_supabase_connected:
-            try:
-                self._execute("DELETE FROM feature_influence")
-            except Exception as e:
-                print(f"DB clear feature_influence error: {e}")
-
-        _in_memory_store.feature_influences.clear()
-
-        saved = []
-        for f in features:
-            record = {
-                "id": str(uuid.uuid4()),
-                "feature": f["feature"],
-                "sensitive": f.get("sensitive", False),
-                "used_in_model": f.get("usedInModel", True),
-                "audit_only": f.get("auditOnly", False),
-            }
-
-            if self.is_supabase_connected:
-                try:
-                    row = self._execute_returning(
-                        """INSERT INTO feature_influence (id, feature, sensitive, used_in_model, audit_only)
-                           VALUES (%s,%s,%s,%s,%s) RETURNING *""",
-                        (record["id"], record["feature"], record["sensitive"],
-                         record["used_in_model"], record["audit_only"]),
-                    )
-                    if row:
-                        saved.append(row)
-                        continue
-                except Exception as e:
-                    print(f"DB save_feature_influences error: {e}")
-
-            _in_memory_store.feature_influences.append(record)
-            saved.append(record)
-        return saved
-
-    def get_feature_influences(self) -> List[Dict[str, Any]]:
-        """Get all feature influence records."""
-        if self.is_supabase_connected:
-            try:
-                return self._query("SELECT * FROM feature_influence")
-            except Exception as e:
-                print(f"DB get_feature_influences error: {e}")
-
-        return list(_in_memory_store.feature_influences)
 
     # =========================================================================
     # STUDENT CREATION (atomic: users + student_details)

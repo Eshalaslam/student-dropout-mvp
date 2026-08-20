@@ -13,7 +13,6 @@ import StudentList from "./pages/StudentList";
 import StudentDetails from "./pages/StudentDetails";
 import MentorInterventionTracking from "./pages/MentorInterventionTracking";
 import Reports from "./pages/Reports";
-import BiasPrivacyAudit from "./pages/BiasPrivacyAudit";
 import ManageMentors from "./pages/ManageMentors";
 
 import { getScopedStudents } from "./utils/useRbac";
@@ -81,14 +80,6 @@ function AppRoutes() {
           element={
             <PrivateRoute allowedRoles={["Admin"]}>
               <ManageMentors students={students} />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/audit"
-          element={
-            <PrivateRoute allowedRoles={["Admin"]}>
-              <BiasPrivacyAudit />
             </PrivateRoute>
           }
         />

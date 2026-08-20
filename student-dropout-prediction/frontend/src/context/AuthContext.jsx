@@ -42,36 +42,39 @@ export function AuthProvider({ children }) {
   // Verify active session with backend if token exists
   useEffect(() => {
     const token = getToken();
-    if (token) {
-      setAuthLoading(true);
-      api.getMe()
-        .then((me) => {
-          if (me) {
-            const formatted = {
-              id: me.id,
-              username: me.username || me.email,
-              name: me.name || me.full_name || me.username,
-              email: me.email,
-              role: formatRole(me.role),
-              mentorId: me.mentorId || me.mentor_id,
-              mentorName: me.mentorName || me.name,
-              status: me.status || "Active",
-            };
-            setCurrentUser(formatted);
-            localStorage.setItem("dropout_auth_user", JSON.stringify(formatted));
-          } else {
-            removeToken();
-            setCurrentUser(null);
-            localStorage.removeItem("dropout_auth_user");
-          }
-        })
-        .catch(() => {
+    if (!token) {
+      setAuthLoading(false);
+      setCurrentUser(null);
+      return;
+    }
+    setAuthLoading(true);
+    api.getMe()
+      .then((me) => {
+        if (me) {
+          const formatted = {
+            id: me.id,
+            username: me.username || me.email,
+            name: me.name || me.full_name || me.username,
+            email: me.email,
+            role: formatRole(me.role),
+            mentorId: me.mentorId || me.mentor_id,
+            mentorName: me.mentorName || me.name,
+            status: me.status || "Active",
+          };
+          setCurrentUser(formatted);
+          localStorage.setItem("dropout_auth_user", JSON.stringify(formatted));
+        } else {
           removeToken();
           setCurrentUser(null);
           localStorage.removeItem("dropout_auth_user");
-        })
-        .finally(() => setAuthLoading(false));
-    }
+        }
+      })
+      .catch(() => {
+        removeToken();
+        setCurrentUser(null);
+        localStorage.removeItem("dropout_auth_user");
+      })
+      .finally(() => setAuthLoading(false));
   }, []);
 
   const login = async (username, password) => {
