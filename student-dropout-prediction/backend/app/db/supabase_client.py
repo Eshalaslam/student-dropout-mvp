@@ -84,7 +84,7 @@ class DatabaseService:
         if HAS_PSYCOPG2 and DATABASE_URL:
             try:
                 min_conn = int(os.getenv("MIN_CONNECTIONS", "1"))
-                max_conn = int(os.getenv("MAX_CONNECTIONS", "10"))
+                max_conn = int(os.getenv("MAX_CONNECTIONS", "3"))
                 self._pool = pool.ThreadedConnectionPool(
                     minconn=min_conn,
                     maxconn=max_conn,
