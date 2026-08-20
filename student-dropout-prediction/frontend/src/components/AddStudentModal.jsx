@@ -1,5 +1,5 @@
-﻿import { useState, useEffect } from "react";
-import { X, UserPlus, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, UserPlus, Loader2, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
 import api from "../services/api";
 
 const DEPARTMENTS = [
@@ -90,6 +90,55 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }) {
     }));
   }
 
+  function handleFillDummy() {
+    setForm({
+      full_name: "Sophia Martinez",
+      email: "sophia.martinez@university.edu",
+      student_id: `STU-${Math.floor(1000 + Math.random() * 9000)}`,
+      password: "student123",
+      department: "Computer Science",
+      semester: 2,
+      attendance_percentage: 88,
+      mentor_id: mentors[0]?.id || "",
+
+      marital_status: 1,
+      application_mode: 1,
+      application_order: 1,
+      course: 9254,
+      daytime_attendance: 1,
+      age_at_enrollment: 21,
+      previous_qualification: 1,
+      previous_qualification_grade: 145.0,
+      mothers_qualification: 1,
+      fathers_qualification: 1,
+      mothers_occupation: 5,
+      fathers_occupation: 5,
+      admission_grade: 140.0,
+      displaced: 0,
+      special_needs: 0,
+      debtor: 0,
+      tuition_fees_current: 1,
+      gender: 0,
+      scholarship_holder: 1,
+      units_credited_sem1: 0,
+      units_enrolled_sem1: 6,
+      evaluations_sem1: 6,
+      units_approved_sem1: 6,
+      grade_sem1: 15.2,
+      no_evaluations_sem1: 0,
+      units_credited_sem2: 0,
+      units_enrolled_sem2: 6,
+      evaluations_sem2: 6,
+      units_approved_sem2: 5,
+      grade_sem2: 14.8,
+      no_evaluations_sem2: 0,
+      unemployment_rate: 10.8,
+      inflation_rate: 1.4,
+      gdp: 1.74,
+    });
+    setError(null);
+  }
+
   function validate() {
     if (!form.full_name.trim()) return "Full name is required.";
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
@@ -148,9 +197,20 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }) {
               <p className="text-xs text-slate-500 mt-0.5">Admin only — creates a student account and dataset record</p>
             </div>
           </div>
-          <button onClick={onClose} disabled={loading} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleFillDummy}
+              disabled={loading}
+              className="px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+              Fill Demo Data
+            </button>
+            <button onClick={onClose} disabled={loading} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-5">
