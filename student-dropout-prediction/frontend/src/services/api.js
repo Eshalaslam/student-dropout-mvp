@@ -309,39 +309,6 @@ export const api = {
   async deleteScheduledReport(id) {
     return await request(`/reports/scheduled/${id}`, { method: "DELETE" });
   },
-
-  // ─── AUDIT (ADMIN) ─────────────────────────────────────────────────────────
-  async getFairnessAudit(attribute = null) {
-    const qs = attribute ? `?attribute=${attribute}` : "";
-    return await request(`/audit/fairness${qs}`);
-  },
-
-  async getFeatureDisclosure() {
-    return await request("/audit/feature-disclosure");
-  },
-
-  async getAccessLog(params = {}) {
-    const query = new URLSearchParams();
-    if (params.user) query.set("user", params.user);
-    if (params.action) query.set("action", params.action);
-    const qs = query.toString() ? `?${query.toString()}` : "";
-    return await request(`/audit/access-log${qs}`);
-  },
-
-  async getPrivacyDocs() {
-    return await request("/audit/privacy-docs");
-  },
-
-  async updatePrivacyDocs(content) {
-    return await request("/audit/privacy-docs", {
-      method: "PUT",
-      body: JSON.stringify({ content }),
-    });
-  },
-
-  async exportAudit(format = "csv") {
-    return await request(`/audit/export?format=${format}`);
-  },
 };
 
 export default api;

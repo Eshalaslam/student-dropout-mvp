@@ -9,7 +9,6 @@ const PAGE_TITLES = {
   "/interventions": { title: "Mentor Intervention Tracking", subtitle: "Track follow-up actions for at-risk students" },
   "/reports":       { title: "Reports",                      subtitle: "Generate and download filtered cohort reports" },
   "/mentors":       { title: "Manage Mentors",               subtitle: "Register and manage mentor accounts and assignments" },
-  "/audit":         { title: "Bias & Privacy Audit",         subtitle: "Model fairness metrics and data access log" },
 };
 
 export default function TopBar() {

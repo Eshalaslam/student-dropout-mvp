@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   FileText, Download, Copy, Check, ChevronUp, ChevronDown,
-  Search, Calendar, BarChart3, ClipboardList, ShieldAlert,
+  Search, Calendar, BarChart3, ClipboardList,
   Users, Clock, Trash2, Plus, ToggleLeft, ToggleRight, FileDown,
 } from "lucide-react";
 import RiskBadge from "../components/RiskBadge";
@@ -12,15 +12,13 @@ const REPORT_TYPES = [
   { id: "at-risk", label: "At-Risk Students", icon: Users, color: "rose", description: "Flagged students with risk band, score, and key risk drivers." },
   { id: "intervention", label: "Intervention Progress", icon: ClipboardList, color: "sky", description: "Status breakdown per mentor and department." },
   { id: "dept-trend", label: "Dept. Risk Trend", icon: BarChart3, color: "teal", description: "Aggregate dropout risk stats per department." },
-  { id: "audit", label: "Full Audit Report", icon: ShieldAlert, color: "violet", description: "Fairness metrics and data access log." },
 ];
 const TYPE_COLORS = {
   "at-risk": { badge: "bg-rose-50 text-rose-700 border-rose-200", card: "bg-rose-50/40 border-rose-300", icon: "text-rose-600", dot: "bg-rose-400" },
   "intervention": { badge: "bg-sky-50 text-sky-700 border-sky-200", card: "bg-sky-50/40 border-sky-300", icon: "text-sky-600", dot: "bg-sky-400" },
   "dept-trend": { badge: "bg-teal-50 text-teal-700 border-teal-200", card: "bg-teal-50/40 border-teal-300", icon: "text-teal-600", dot: "bg-teal-400" },
-  "audit": { badge: "bg-violet-50 text-violet-700 border-violet-200", card: "bg-violet-50/40 border-violet-300", icon: "text-violet-600", dot: "bg-violet-400" },
 };
-const TYPE_LABELS = { "at-risk": "At-Risk Students", intervention: "Intervention Progress", "dept-trend": "Dept. Risk Trend", audit: "Full Audit" };
+const TYPE_LABELS = { "at-risk": "At-Risk Students", intervention: "Intervention Progress", "dept-trend": "Dept. Risk Trend" };
 // These are derived inside the component from live `students` prop — not from mock data
 const INT_STATUSES = ["All", "Not Started", "In Progress", "Resolved", "Escalated"];
 const RISK_BANDS = ["All", "High", "Medium", "Low"];
@@ -475,11 +473,6 @@ export default function Reports({ students, currentUser: propUser }) {
           {reportType === "at-risk" && <AtRiskTable rows={previewRows} />}
           {reportType === "intervention" && <InterventionTable rows={previewRows} />}
           {reportType === "dept-trend" && <DeptTrendTable rows={previewRows} />}
-          {reportType === "audit" && (
-            <div className="p-6 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-500 text-center">
-              The Full Audit Report pulls data from the Bias &amp; Privacy Audit page. Download CSV to export the access log.
-            </div>
-          )}
         </div>
       </div>
 

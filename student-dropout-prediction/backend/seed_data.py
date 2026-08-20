@@ -5,8 +5,7 @@ Creates demo data:
 - 1 admin user (admin / admin123)
 - 3 mentors with assigned students
 - 10 students with full ML model training features
-- Sample interventions, reports, access logs
-- Privacy doc, fairness results, feature influence data
+- Sample interventions and reports
 
 Usage:
     cd student-dropout-prediction
@@ -508,160 +507,6 @@ def seed_reports():
     print("  Created 2 reports and 2 schedules")
 
 
-def seed_access_logs():
-    """Create sample access logs."""
-    print("Seeding access logs...")
-    existing = db_service.get_access_logs()
-    if existing:
-        print("  Access logs already exist. Skipping.")
-        return
-
-    db_service.log_access("admin", "Admin", "System login")
-    db_service.log_access("mentor_james", "Mentor", "Viewed student STU-1001", "STU-1001")
-    db_service.log_access("mentor_sarah", "Mentor", "Updated intervention for STU-1005", "STU-1005")
-    db_service.log_access("admin", "Admin", "Generated risk summary report")
-    db_service.log_access("admin", "Admin", "Viewed audit fairness results")
-    db_service.log_access("mentor_maria", "Mentor", "Viewed student STU-1007", "STU-1007")
-
-    print("  Created 6 access log entries")
-
-
-def seed_privacy_doc():
-    """Create privacy documentation."""
-    print("Seeding privacy document...")
-    existing = db_service.get_privacy_doc()
-    if existing:
-        print("  Privacy doc already exists. Skipping.")
-        return
-
-    content = """# Student Dropout Early-Warning System — Privacy Policy
-
-## Data Collection
-The system collects academic performance data, demographic information, and socio-economic indicators
-for the sole purpose of identifying students at risk of dropping out and enabling early intervention.
-
-## Data Usage
-- Student data is used exclusively for academic risk assessment and mentor coordination.
-- ML model predictions are used to prioritize outreach efforts.
-- No student data is shared with external parties.
-
-## Data Retention
-- Academic records are retained for the duration of the student's enrollment.
-- Intervention records are retained for 5 years after the student's last enrollment date.
-- Access logs are retained for 2 years.
-
-## Data Security
-- All data is encrypted in transit (TLS) and at rest.
-- Access is controlled via role-based authentication (Admin, Mentor).
-- All data access is logged for compliance auditing.
-
-## Student Rights
-- Students may request access to their stored data.
-- Students may request correction of inaccurate data.
-- Students may opt out of automated risk assessment (with counselor notification).
-
-## Compliance
-This system complies with FERPA (Family Educational Rights and Privacy Act) and institutional
-data governance policies.
-"""
-    db_service.update_privacy_doc(content)
-    print("  Created privacy document")
-
-
-def seed_fairness_results():
-    """Create sample fairness audit results."""
-    print("Seeding fairness results...")
-    existing = db_service.get_all_fairness_results()
-    if existing:
-        print("  Fairness results already exist. Skipping.")
-        return
-
-    fairness_data = [
-        {
-            "attribute": "gender",
-            "threshold": 0.8,
-            "overall": {"group": "overall", "n": 10, "recall": 0.85, "fnr": 0.15, "fpr": 0.10, "selectionRate": 0.40},
-            "groups": [
-                {"group": "Female", "n": 5, "recall": 0.80, "fnr": 0.20, "fpr": 0.08, "selectionRate": 0.35},
-                {"group": "Male", "n": 5, "recall": 0.90, "fnr": 0.10, "fpr": 0.12, "selectionRate": 0.45},
-            ],
-        },
-        {
-            "attribute": "category",
-            "threshold": 0.8,
-            "overall": {"group": "overall", "n": 10, "recall": 0.85, "fnr": 0.15, "fpr": 0.10, "selectionRate": 0.40},
-            "groups": [
-                {"group": "Regular", "n": 7, "recall": 0.88, "fnr": 0.12, "fpr": 0.09, "selectionRate": 0.42},
-                {"group": "International", "n": 3, "recall": 0.78, "fnr": 0.22, "fpr": 0.13, "selectionRate": 0.33},
-            ],
-        },
-        {
-            "attribute": "region",
-            "threshold": 0.8,
-            "overall": {"group": "overall", "n": 10, "recall": 0.85, "fnr": 0.15, "fpr": 0.10, "selectionRate": 0.40},
-            "groups": [
-                {"group": "Urban", "n": 6, "recall": 0.90, "fnr": 0.10, "fpr": 0.08, "selectionRate": 0.45},
-                {"group": "Rural", "n": 4, "recall": 0.78, "fnr": 0.22, "fpr": 0.14, "selectionRate": 0.30},
-            ],
-        },
-        {
-            "attribute": "age_band",
-            "threshold": 0.8,
-            "overall": {"group": "overall", "n": 10, "recall": 0.85, "fnr": 0.15, "fpr": 0.10, "selectionRate": 0.40},
-            "groups": [
-                {"group": "18-21", "n": 5, "recall": 0.90, "fnr": 0.10, "fpr": 0.08, "selectionRate": 0.45},
-                {"group": "22-25", "n": 3, "recall": 0.82, "fnr": 0.18, "fpr": 0.12, "selectionRate": 0.38},
-                {"group": "25+", "n": 2, "recall": 0.75, "fnr": 0.25, "fpr": 0.15, "selectionRate": 0.30},
-            ],
-        },
-    ]
-
-    for fd in fairness_data:
-        db_service.save_fairness_result(fd)
-    print(f"  Created {len(fairness_data)} fairness audit results")
-
-
-def seed_feature_influence():
-    """Create feature influence disclosure data."""
-    print("Seeding feature influence data...")
-    existing = db_service.get_feature_influences()
-    if existing:
-        print("  Feature influence data already exists. Skipping.")
-        return
-
-    features = [
-        {"feature": "curricular_units_2nd_sem_approved", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "curricular_units_1st_sem_approved", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "curricular_units_2nd_sem_enrolled", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "curricular_units_1st_sem_enrolled", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "curricular_units_2nd_sem_grade", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "curricular_units_1st_sem_grade", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "tuition_fees_up_to_date", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "debtor", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "scholarship_holder", "sensitive": True, "usedInModel": True, "auditOnly": False},
-        {"feature": "age_at_enrollment", "sensitive": True, "usedInModel": True, "auditOnly": False},
-        {"feature": "gender", "sensitive": True, "usedInModel": True, "auditOnly": False},
-        {"feature": "displaced", "sensitive": True, "usedInModel": True, "auditOnly": False},
-        {"feature": "admission_grade", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "previous_qualification_grade", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "daytime_attendance", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "unemployment_rate", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "inflation_rate", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "gdp", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "approval_ratio_sem1", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "approval_ratio_sem2", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "grade_change", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "engagement_score", "sensitive": False, "usedInModel": True, "auditOnly": False},
-        {"feature": "mothers_qualification", "sensitive": True, "usedInModel": False, "auditOnly": True},
-        {"feature": "fathers_qualification", "sensitive": True, "usedInModel": False, "auditOnly": True},
-        {"feature": "mothers_occupation", "sensitive": True, "usedInModel": False, "auditOnly": True},
-        {"feature": "fathers_occupation", "sensitive": True, "usedInModel": False, "auditOnly": True},
-    ]
-
-    db_service.save_feature_influences(features)
-    print(f"  Created {len(features)} feature influence records")
-
-
 def seed_predictions():
     """Compute and seed predictions for all student details."""
     print("Seeding predictions...")
@@ -716,10 +561,6 @@ def main():
     seed_predictions()
     seed_interventions()
     seed_reports()
-    seed_access_logs()
-    seed_privacy_doc()
-    seed_fairness_results()
-    seed_feature_influence()
 
     print("=" * 60)
     print("Seeding complete!")
