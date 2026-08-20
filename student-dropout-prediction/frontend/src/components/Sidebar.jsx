@@ -111,9 +111,6 @@ export default function Sidebar() {
             </span>
           </div>
         </div>
-        <div className="rounded-lg bg-teal-900/40 border border-teal-700/30 px-3 py-2">
-          <div className="text-[10px] text-slate-400 leading-snug">Mock data · No real backend</div>
-        </div>
       </div>
     </aside>
   );

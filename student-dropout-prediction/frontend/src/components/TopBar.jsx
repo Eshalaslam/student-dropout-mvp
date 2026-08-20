@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, LogOut, ChevronDown } from "lucide-react";
+import { LogOut, ChevronDown } from "lucide-react";
 import { ROLE_STYLES } from "../utils/useRbac";
 import { useAuth } from "../context/AuthContext";
 
@@ -49,12 +49,6 @@ export default function TopBar() {
 
       {/* Right-side actions */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        {/* Notification bell (decorative) */}
-        <button className="relative w-8 h-8 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
-        </button>
-
         <div className="w-px h-5 bg-slate-200 mx-1" />
 
         {/* User pill */}
