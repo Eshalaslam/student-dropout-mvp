@@ -108,7 +108,7 @@ export const api = {
     if (params.risk_level) query.set("risk_level", params.risk_level);
     if (params.department) query.set("department", params.department);
     const qs = query.toString() ? `?${query.toString()}` : "";
-    return await request(`/students${qs}`);
+    return await request(`/students/${qs}`);
   },
 
   async getStudent(studentId) {
@@ -155,7 +155,7 @@ export const api = {
     if (params.mentor_id) query.set("mentor_id", params.mentor_id);
     if (params.risk_band) query.set("risk_band", params.risk_band);
     const qs = query.toString() ? `?${query.toString()}` : "";
-    return await request(`/interventions${qs}`);
+    return await request(`/interventions/${qs}`);
   },
 
   async getIntervention(studentId) {

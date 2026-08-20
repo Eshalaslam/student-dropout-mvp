@@ -310,9 +310,102 @@ class DatabaseService:
 
         return list(_in_memory_store.student_details.values())
 
-    # =========================================================================
-    # PREDICTIONS & LOGS
-    # =========================================================================
+    def get_all_student_users_bulk(self) -> Dict[str, Dict[str, Any]]:
+        """Fetch ALL users with a student_id in ONE query and return as {student_id: user} dict.
+        Eliminates N calls to get_user_by_student_id inside per-student loops."""
+        if self.is_supabase_connected:
+            try:
+                rows = self._query(
+                    "SELECT * FROM users WHERE student_id IS NOT NULL AND student_id != ''"
+                )
+                return {r["student_id"]: r for r in rows if r.get("student_id")}
+            except Exception as e:
+                print(f"DB get_all_student_users_bulk error: {e}")
+
+        return {
+            u["student_id"]: u
+            for u in _in_memory_store.users.values()
+            if u.get("student_id")
+        }
+
+    def get_all_interventions_bulk(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Fetch ALL intervention rows in ONE query, grouped by student_id.
+        Eliminates N calls to get_interventions(student_id) inside per-student loops."""
+        if self.is_supabase_connected:
+            try:
+                rows = self._query(
+                    "SELECT * FROM interventions ORDER BY created_at DESC"
+                )
+                result: Dict[str, List] = {}
+                for r in rows:
+                    sid = r.get("student_id", "")
+                    if sid:
+                        result.setdefault(sid, []).append(r)
+                return result
+            except Exception as e:
+                print(f"DB get_all_interventions_bulk error: {e}")
+
+        # In-memory fallback
+        result: Dict[str, List] = {}
+        for iv in sorted(
+            _in_memory_store.interventions,
+            key=lambda x: x.get("created_at", ""),
+            reverse=True,
+        ):
+            sid = iv.get("student_id", "")
+            if sid:
+                result.setdefault(sid, []).append(iv)
+        return result
+
+    def get_all_mentor_notes_bulk(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Fetch ALL mentor_notes rows in ONE query, grouped by student_id.
+        Eliminates N calls to get_notes_by_student inside per-student loops."""
+        if self.is_supabase_connected:
+            try:
+                rows = self._query(
+                    "SELECT * FROM mentor_notes ORDER BY timestamp DESC"
+                )
+                result: Dict[str, List] = {}
+                for r in rows:
+                    sid = r.get("student_id", "")
+                    if sid:
+                        result.setdefault(sid, []).append(r)
+                return result
+            except Exception as e:
+                print(f"DB get_all_mentor_notes_bulk error: {e}")
+
+        result: Dict[str, List] = {}
+        for n in sorted(
+            _in_memory_store.mentor_notes,
+            key=lambda x: x.get("timestamp", ""),
+            reverse=True,
+        ):
+            sid = n.get("student_id", "")
+            if sid:
+                result.setdefault(sid, []).append(n)
+        return result
+
+    def get_all_mentor_assignments_bulk(self) -> Dict[str, Dict[str, Any]]:
+        """Fetch ALL mentor_assignments rows in ONE query, keyed by student_id.
+        Eliminates N calls to get_mentors_by_student inside per-student loops."""
+        if self.is_supabase_connected:
+            try:
+                rows = self._query(
+                    "SELECT ma.student_id, m.mentor_id, m.name as mentor_name "
+                    "FROM mentor_assignments ma "
+                    "JOIN mentors m ON ma.mentor_id = m.mentor_id"
+                )
+                return {r["student_id"]: r for r in rows if r.get("student_id")}
+            except Exception as e:
+                print(f"DB get_all_mentor_assignments_bulk error: {e}")
+
+        result = {}
+        for a in _in_memory_store.mentor_assignments:
+            sid = a.get("student_id")
+            if sid and sid not in result:
+                result[sid] = a
+        return result
+
 
     def save_prediction(self, prediction_data: Dict[str, Any]) -> Dict[str, Any]:
         """Save a prediction result with SHAP reasons and recommendations."""

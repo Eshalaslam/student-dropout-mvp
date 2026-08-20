@@ -1,6 +1,8 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthContext";
+import { DataProvider, useData } from "./context/DataContext";
+import { useAuth } from "./context/AuthContext";
 import PublicRoute from "./components/PublicRoute";
 import PrivateRoute from "./components/PrivateRoute";
 import Layout from "./components/Layout";
@@ -14,71 +16,22 @@ import Reports from "./pages/Reports";
 import BiasPrivacyAudit from "./pages/BiasPrivacyAudit";
 import ManageMentors from "./pages/ManageMentors";
 
-import DATA from "./data/mockStudents";
 import { getScopedStudents } from "./utils/useRbac";
-import api from "./services/api";
 
 function AppRoutes() {
   const { currentUser } = useAuth();
-  const [students, setStudents] = useState(DATA);
-
-  // Fetch live student data when logged in
-  useEffect(() => {
-    if (currentUser) {
-      api.getStudents()
-        .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            setStudents(data);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [currentUser]);
+  const {
+    students,
+    handleAssignMentor,
+    handleAddIntervention,
+    handleUpdateInterventionStatus,
+  } = useData();
 
   // Scoped student cohort based on role and mentor assignment
   const scopedStudents = useMemo(
     () => getScopedStudents(currentUser?.role, currentUser?.mentorName, students),
     [currentUser, students]
   );
-
-  function handleAddIntervention(id, intervention) {
-    setStudents((prev) =>
-      prev.map((s) => (s.student_id === id ? { ...s, interventions: [...(s.interventions || []), intervention] } : s))
-    );
-    api.addStudentIntervention(id, intervention).catch(() => {});
-  }
-
-  function handleUpdateInterventionStatus(id, index, status) {
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.student_id === id
-          ? { ...s, interventions: (s.interventions || []).map((iv, i) => (i === index ? { ...iv, status } : iv)) }
-          : s
-      )
-    );
-    api.updateInterventionStatus(id, status).catch(() => {});
-  }
-
-  function handleAssignMentor(studentId, newMentorId, newMentorName) {
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.student_id === studentId) {
-          return {
-            ...s,
-            assigned_mentor: newMentorName || newMentorId,
-            assigned_mentor_id: newMentorId,
-            assignedMentorId: newMentorId,
-            assignedMentor: newMentorName || newMentorId,
-          };
-        }
-        return s;
-      })
-    );
-    // Persist reassignment to backend
-    if (newMentorId) {
-      api.reassignMentor(studentId, newMentorId).catch(() => {});
-    }
-  }
 
   return (
     <Routes>
@@ -150,7 +103,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <DataProvider>
+          <AppRoutes />
+        </DataProvider>
       </AuthProvider>
     </BrowserRouter>
   );

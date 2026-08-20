@@ -109,35 +109,144 @@ def list_interventions(
     risk_band: Optional[str] = Query(None, description="Filter by risk band: High, Medium, Low"),
     current_user: Optional[dict] = Depends(get_current_user),
 ):
-    """List all students with intervention details. Mentors see only assigned students."""
-    all_details = db_service.get_all_student_details()
-    profiles = []
-    for d in all_details:
-        sid = d.get("student_id", "")
-        profile = _get_intervention_student_profile(sid)
-        profiles.append(profile)
+    """List all students with intervention details. Mentors see only assigned students.
 
-    # Mentor filter
+    Uses bulk queries (4 total regardless of student count) to avoid N+1 DB round-trips.
+    """
+    from backend.app.services.model_service import ModelService
+    from backend.app.services.shap_service import ShapService
+
+    # ── 1. Bulk-fetch all data in 4 queries ────────────────────────────────────
+    all_details = db_service.get_all_student_details()           # 1 query
+    all_users   = db_service.get_all_student_users_bulk()        # 1 query
+    all_ivs     = db_service.get_all_interventions_bulk()        # 1 query
+    all_notes   = db_service.get_all_mentor_notes_bulk()         # 1 query
+    all_assignments = db_service.get_all_mentor_assignments_bulk()  # 1 query (JOIN)
+
+    # Lazy-init services once (not inside the loop)
+    try:
+        model_service = ModelService()
+    except Exception:
+        model_service = None
+    try:
+        shap_service = ShapService()
+    except Exception:
+        shap_service = None
+
+    # ── 2. Assemble profiles in Python (zero additional DB calls) ──────────────
+    profiles = []
+    for details in all_details:
+        sid = details.get("student_id", "")
+        if not sid:
+            continue
+
+        # Student name from users bulk dict
+        user = all_users.get(sid)
+        student_name = (user.get("full_name") or f"Student {sid}") if user else f"Student {sid}"
+
+        # Intervention status, mentor, dates from bulk interventions dict
+        ivs_for_student = all_ivs.get(sid, [])
+        intervention_status = "Not Started"
+        assigned_mentor = None
+        assigned_mentor_id = None
+        last_updated = None
+
+        if ivs_for_student:
+            latest = ivs_for_student[0]
+            intervention_status = latest.get("intervention_status") or latest.get("status") or "Not Started"
+            assigned_mentor_id = latest.get("assigned_mentor")
+            assigned_mentor = latest.get("mentor_name") or latest.get("assigned_mentor")
+            last_updated = latest.get("last_updated") or latest.get("updated_at")
+
+        # Fall back to mentor_assignments if intervention has no mentor info
+        if not assigned_mentor:
+            asgn = all_assignments.get(sid)
+            if asgn:
+                assigned_mentor = asgn.get("mentor_name")
+                assigned_mentor_id = asgn.get("mentor_id") or assigned_mentor_id
+
+        # Risk scoring (CPU-bound, no DB)
+        dropout_probability = 0.0
+        risk_category = "Low"
+        if details and model_service:
+            try:
+                pred = model_service.predict(details)
+                dropout_probability = pred["risk_score"]
+                risk_category = pred["risk_band"].capitalize()
+            except Exception:
+                pass
+
+        # Attendance & approval rates (in-memory arithmetic)
+        attendance_percentage = details.get("attendance_percentage")
+        sem1_approved = details.get("units_approved_sem1", 0) or 0
+        sem1_enrolled = details.get("units_enrolled_sem1", 1) or 1
+        sem2_approved = details.get("units_approved_sem2", 0) or 0
+        sem2_enrolled = details.get("units_enrolled_sem2", 1) or 1
+        total_enrolled = sem1_enrolled + sem2_enrolled
+        total_approved = sem1_approved + sem2_approved
+        approval_rate = round(total_approved / total_enrolled, 4) if total_enrolled > 0 else 0.0
+
+        # Mentor notes from bulk dict
+        raw_notes = all_notes.get(sid, [])
+        mentor_notes = [
+            {
+                "id": n.get("id"),
+                "author": n.get("author", ""),
+                "timestamp": n.get("timestamp"),
+                "text": n.get("text", ""),
+            }
+            for n in raw_notes
+        ]
+
+        # SHAP risk factors (CPU-bound, no DB)
+        risk_factors = []
+        if details and shap_service:
+            try:
+                for r in shap_service.explain(details, top_n=5):
+                    impact = r.get("impact", 0)
+                    tier = "major" if abs(impact) > 0.1 else "moderate" if abs(impact) > 0.05 else "minor"
+                    risk_factors.append({
+                        "factor": r.get("feature", "unknown"),
+                        "tier": tier,
+                        "direction": "risk" if impact > 0 else "protective",
+                    })
+            except Exception:
+                pass
+
+        profiles.append({
+            "student_id": sid,
+            "student_name": student_name,
+            "department": details.get("department"),
+            "semester": details.get("semester"),
+            "dropout_probability": dropout_probability,
+            "risk_category": risk_category,
+            "intervention_status": intervention_status,
+            "assigned_mentor": assigned_mentor,
+            "assigned_mentor_id": assigned_mentor_id,
+            "last_updated": last_updated,
+            "mentor_notes": mentor_notes,
+            "attendance_percentage": attendance_percentage,
+            "approval_rate": approval_rate,
+            "risk_factors": risk_factors,
+        })
+
+    # ── 3. Role-based scoping ──────────────────────────────────────────────────
     role = (current_user.get("role", "") if current_user else "")
-    if role == "Mentor":
+    if role.lower() == "mentor":
         mid = current_user.get("mentorId") or current_user.get("mentor_id")
         if mid:
             assignments = db_service.get_students_by_mentor(mid)
             assigned_ids = {a["student_id"] for a in assignments}
             profiles = [p for p in profiles if p["student_id"] in assigned_ids]
 
-    # Status filter
+    # ── 4. Optional filters ────────────────────────────────────────────────────
     if status_filter:
         profiles = [
             p for p in profiles
             if p["intervention_status"] and p["intervention_status"].lower() == status_filter.lower()
         ]
-
-    # Mentor ID filter
     if mentor_id:
-        profiles = [p for p in profiles if p.get("assigned_mentor") == mentor_id]
-
-    # Risk band filter
+        profiles = [p for p in profiles if p.get("assigned_mentor_id") == mentor_id or p.get("assigned_mentor") == mentor_id]
     if risk_band:
         profiles = [p for p in profiles if p["risk_category"].lower() == risk_band.lower()]
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useData } from "../context/DataContext";
 import { USERS } from "../data/mockAuth";
-import api from "../services/api";
 
 /**
  * Reusable MentorAssignDropdown component.
@@ -12,7 +12,7 @@ import api from "../services/api";
  *  - value: string | null (alias for currentMentorId / mentor name)
  *  - onAssign: (studentId, newMentorId, newMentorName) => void
  *  - onChange: (value) => void
- *  - mentors: array (optional list of mentors; if omitted, fetches live or uses mock)
+ *  - mentors: array (optional override list; if omitted, uses DataContext)
  *  - isAdmin: boolean (optional override; defaults to checking currentUser)
  *  - disabled: boolean
  *  - className: string
@@ -29,34 +29,32 @@ export default function MentorAssignDropdown({
   className = "",
 }) {
   const { currentUser } = useAuth();
+  const { activeMentors: contextMentors = [] } = useData();
+
   const isAdmin =
     propIsAdmin !== undefined
       ? propIsAdmin
       : currentUser?.role === "Admin" || currentUser?.role === "admin";
 
+  // Resolve mentor list: explicit prop > context > mock fallback
   const [mentorList, setMentorList] = useState(() => {
     if (Array.isArray(propMentors) && propMentors.length > 0) {
-      return propMentors;
+      return propMentors.filter((m) => m.status !== "Inactive");
     }
-    // Fallback initial active mentors from mock
+    if (contextMentors.length > 0) return contextMentors;
     return USERS.filter((u) => u.role === "Mentor" && u.status === "Active");
   });
 
-  // Sync propMentors if provided
+  // Sync when propMentors or context mentors update
   useEffect(() => {
     if (Array.isArray(propMentors) && propMentors.length > 0) {
       setMentorList(propMentors.filter((m) => m.status !== "Inactive"));
-    } else {
-      // Fetch live mentors if available
-      api.getMentors()
-        .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            setMentorList(data.filter((m) => m.status !== "Inactive"));
-          }
-        })
-        .catch(() => {});
+    } else if (contextMentors.length > 0) {
+      setMentorList(contextMentors);
     }
-  }, [propMentors]);
+  // contextMentors identity is stable (same array ref unless data changes)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propMentors, contextMentors]);
 
   // Determine current value / display name
   const currentVal = value ?? currentMentorId ?? "";
