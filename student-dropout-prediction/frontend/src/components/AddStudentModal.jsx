@@ -357,11 +357,25 @@ export default function AddStudentModal({ isOpen, onClose, onStudentAdded }) {
 
   if (!isOpen) return null;
 
+  const NUMERIC_FIELDS = new Set([
+    "marital_status", "application_mode", "application_order", "course",
+    "daytime_attendance", "previous_qualification", "mothers_qualification",
+    "fathers_qualification", "mothers_occupation", "fathers_occupation",
+    "displaced", "special_needs", "debtor", "tuition_fees_current",
+    "gender", "scholarship_holder", "age_at_enrollment", "semester",
+    "units_credited_sem1", "units_enrolled_sem1", "evaluations_sem1",
+    "units_approved_sem1", "no_evaluations_sem1",
+    "units_credited_sem2", "units_enrolled_sem2", "evaluations_sem2",
+    "units_approved_sem2", "no_evaluations_sem2",
+  ]);
+
   function handleChange(e) {
     const { name, value, type } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: type === "number" ? (value === "" ? "" : Number(value)) : value,
+      [name]: (type === "number" || NUMERIC_FIELDS.has(name))
+        ? (value === "" ? "" : Number(value))
+        : value,
     }));
   }
 

@@ -92,16 +92,6 @@ def _compute_student_profile(student_id: str, details: dict) -> dict:
         "student_name": student_name,
         "department": details.get("department") if details else None,
         "semester": details.get("semester") if details else None,
-        "admission_grade": details.get("admission_grade") if details else None,
-        "age_at_enrollment": details.get("age_at_enrollment") if details else None,
-        "scholarship_holder": details.get("scholarship_holder") if details else None,
-        "tuition_fees_up_to_date": details.get("tuition_fees_current") if details else None,
-        "curricular_units_1st_sem_enrolled": details.get("units_enrolled_sem1") if details else None,
-        "curricular_units_1st_sem_approved": details.get("units_approved_sem1") if details else None,
-        "curricular_units_2nd_sem_enrolled": details.get("units_enrolled_sem2") if details else None,
-        "curricular_units_2nd_sem_approved": details.get("units_approved_sem2") if details else None,
-        "curricular_units_failed": curricular_units_failed,
-        "approval_rate": approval_rate,
         "attendance_percentage": details.get("attendance_percentage") if details else None,
         "dropout_probability": dropout_probability,
         "risk_category": risk_category,
@@ -109,6 +99,44 @@ def _compute_student_profile(student_id: str, details: dict) -> dict:
         "interventions": interventions,
         "assigned_mentor": assigned_mentor,
         "assigned_mentor_id": assigned_mentor_id,
+        # All 34 raw ML features
+        "marital_status": details.get("marital_status") if details else None,
+        "application_mode": details.get("application_mode") if details else None,
+        "application_order": details.get("application_order") if details else None,
+        "course": details.get("course") if details else None,
+        "daytime_attendance": details.get("daytime_attendance") if details else None,
+        "age_at_enrollment": details.get("age_at_enrollment") if details else None,
+        "previous_qualification": details.get("previous_qualification") if details else None,
+        "previous_qualification_grade": details.get("previous_qualification_grade") if details else None,
+        "mothers_qualification": details.get("mothers_qualification") if details else None,
+        "fathers_qualification": details.get("fathers_qualification") if details else None,
+        "mothers_occupation": details.get("mothers_occupation") if details else None,
+        "fathers_occupation": details.get("fathers_occupation") if details else None,
+        "admission_grade": details.get("admission_grade") if details else None,
+        "displaced": details.get("displaced") if details else None,
+        "special_needs": details.get("special_needs") if details else None,
+        "debtor": details.get("debtor") if details else None,
+        "tuition_fees_current": details.get("tuition_fees_current") if details else None,
+        "gender": details.get("gender") if details else None,
+        "scholarship_holder": details.get("scholarship_holder") if details else None,
+        "units_credited_sem1": details.get("units_credited_sem1") if details else None,
+        "units_enrolled_sem1": details.get("units_enrolled_sem1") if details else None,
+        "evaluations_sem1": details.get("evaluations_sem1") if details else None,
+        "units_approved_sem1": details.get("units_approved_sem1") if details else None,
+        "grade_sem1": details.get("grade_sem1") if details else None,
+        "no_evaluations_sem1": details.get("no_evaluations_sem1") if details else None,
+        "units_credited_sem2": details.get("units_credited_sem2") if details else None,
+        "units_enrolled_sem2": details.get("units_enrolled_sem2") if details else None,
+        "evaluations_sem2": details.get("evaluations_sem2") if details else None,
+        "units_approved_sem2": details.get("units_approved_sem2") if details else None,
+        "grade_sem2": details.get("grade_sem2") if details else None,
+        "no_evaluations_sem2": details.get("no_evaluations_sem2") if details else None,
+        "unemployment_rate": details.get("unemployment_rate") if details else None,
+        "inflation_rate": details.get("inflation_rate") if details else None,
+        "gdp": details.get("gdp") if details else None,
+        # Derived
+        "curricular_units_failed": curricular_units_failed,
+        "approval_rate": approval_rate,
     }
 
 
@@ -345,26 +373,53 @@ def list_students(
             "student_name": student_name,
             "department": d.get("department"),
             "semester": d.get("semester"),
-            "admission_grade": d.get("admission_grade"),
-            "age_at_enrollment": d.get("age_at_enrollment"),
-            "scholarship_holder": d.get("scholarship_holder"),
-            "tuition_fees_up_to_date": d.get("tuition_fees_current"),
-            "curricular_units_1st_sem_enrolled": d.get("units_enrolled_sem1"),
-            "curricular_units_1st_sem_approved": d.get("units_approved_sem1"),
-            "curricular_units_2nd_sem_enrolled": d.get("units_enrolled_sem2"),
-            "curricular_units_2nd_sem_approved": d.get("units_approved_sem2"),
-            "curricular_units_failed": curricular_units_failed,
-            "approval_rate": approval_rate,
             "attendance_percentage": d.get("attendance_percentage"),
             "dropout_probability": dropout_probability,
             "risk_category": risk_category,
             "risk_factors": risk_factors,
             "interventions": interventions,
-            # Mentor assignment — used by StudentList filter and MentorAssignDropdown
             "assigned_mentor": assigned_mentor,
             "assigned_mentor_id": assigned_mentor_id,
             "assignedMentorId": assigned_mentor_id,
             "assignedMentor": assigned_mentor,
+            # All 34 raw ML features
+            "marital_status": d.get("marital_status"),
+            "application_mode": d.get("application_mode"),
+            "application_order": d.get("application_order"),
+            "course": d.get("course"),
+            "daytime_attendance": d.get("daytime_attendance"),
+            "age_at_enrollment": d.get("age_at_enrollment"),
+            "previous_qualification": d.get("previous_qualification"),
+            "previous_qualification_grade": d.get("previous_qualification_grade"),
+            "mothers_qualification": d.get("mothers_qualification"),
+            "fathers_qualification": d.get("fathers_qualification"),
+            "mothers_occupation": d.get("mothers_occupation"),
+            "fathers_occupation": d.get("fathers_occupation"),
+            "admission_grade": d.get("admission_grade"),
+            "displaced": d.get("displaced"),
+            "special_needs": d.get("special_needs"),
+            "debtor": d.get("debtor"),
+            "tuition_fees_current": d.get("tuition_fees_current"),
+            "gender": d.get("gender"),
+            "scholarship_holder": d.get("scholarship_holder"),
+            "units_credited_sem1": d.get("units_credited_sem1"),
+            "units_enrolled_sem1": d.get("units_enrolled_sem1"),
+            "evaluations_sem1": d.get("evaluations_sem1"),
+            "units_approved_sem1": d.get("units_approved_sem1"),
+            "grade_sem1": d.get("grade_sem1"),
+            "no_evaluations_sem1": d.get("no_evaluations_sem1"),
+            "units_credited_sem2": d.get("units_credited_sem2"),
+            "units_enrolled_sem2": d.get("units_enrolled_sem2"),
+            "evaluations_sem2": d.get("evaluations_sem2"),
+            "units_approved_sem2": d.get("units_approved_sem2"),
+            "grade_sem2": d.get("grade_sem2"),
+            "no_evaluations_sem2": d.get("no_evaluations_sem2"),
+            "unemployment_rate": d.get("unemployment_rate"),
+            "inflation_rate": d.get("inflation_rate"),
+            "gdp": d.get("gdp"),
+            # Derived
+            "curricular_units_failed": curricular_units_failed,
+            "approval_rate": approval_rate,
         })
 
     # ── 3. Role-based scoping ──────────────────────────────────────────────────
@@ -455,22 +510,27 @@ def update_student(
     """Update student fields and trigger a new prediction record."""
     details = db_service.get_student_details(student_id) or {"student_id": student_id}
 
-    allowed_fields = {"tuition_fees_up_to_date", "scholarship_holder", "attendance_percentage", "department", "semester", "admission_grade"}
-    updates = {k: v for k, v in body.items() if k in allowed_fields or not allowed_fields}
+    allowed_fields = {
+        "marital_status", "application_mode", "application_order", "course",
+        "daytime_attendance", "age_at_enrollment", "previous_qualification",
+        "previous_qualification_grade", "mothers_qualification", "fathers_qualification",
+        "mothers_occupation", "fathers_occupation", "admission_grade", "displaced",
+        "special_needs", "debtor", "tuition_fees_current", "gender",
+        "scholarship_holder", "units_credited_sem1", "units_enrolled_sem1",
+        "evaluations_sem1", "units_approved_sem1", "grade_sem1", "no_evaluations_sem1",
+        "units_credited_sem2", "units_enrolled_sem2", "evaluations_sem2",
+        "units_approved_sem2", "grade_sem2", "no_evaluations_sem2",
+        "unemployment_rate", "inflation_rate", "gdp",
+        "department", "semester", "attendance_percentage",
+    }
+    updates = {k: v for k, v in body.items() if k in allowed_fields}
 
     if not updates and body:
         updates = body
 
-    field_map = {
-        "tuition_fees_up_to_date": "tuition_fees_current",
-        "scholarship_holder": "scholarship_holder",
-        "attendance_percentage": "attendance_percentage",
-    }
-
     db_updates = {}
     for api_field, value in updates.items():
-        db_col = field_map.get(api_field, api_field)
-        db_updates[db_col] = value
+        db_updates[api_field] = value
 
     merged = {**details, **db_updates}
     saved = db_service.save_student_details(student_id, merged)
