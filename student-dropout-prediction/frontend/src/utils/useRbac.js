@@ -71,6 +71,6 @@ export function canAccess(role, pageId) {
 
 /** Role badge colour map — used by Sidebar and TopBar. */
 export const ROLE_STYLES = {
-  Admin:  { badge: "bg-violet-100 text-violet-700 border-violet-200", dot: "bg-violet-500" },
-  Mentor: { badge: "bg-teal-100 text-teal-700 border-teal-200",       dot: "bg-teal-500"   },
+  Admin: { badge: "bg-violet-100 text-violet-700 border-violet-200", dot: "bg-violet-500" },
+  Mentor: { badge: "bg-teal-100 text-teal-700 border-teal-200", dot: "bg-teal-500" },
 };

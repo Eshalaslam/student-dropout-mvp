@@ -7,6 +7,8 @@ import os
 import joblib
 from backend.app.services.model_service import ModelService, _resolve_model_path
 
+import warnings
+
 FEATURE_DESCRIPTIONS = {
     "curricular_units_2nd_sem_approved": "Courses successfully approved in Semester 2",
     "curricular_units_1st_sem_approved": "Courses successfully approved in Semester 1",
@@ -51,7 +53,9 @@ class ShapService:
             try:
                 path = _resolve_model_path("explainer.pkl")
                 if os.path.exists(path):
-                    ShapService._explainer = joblib.load(path)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        ShapService._explainer = joblib.load(path)
             except Exception as e:
                 print(f"Notice: SHAP explainer fallback active ({e}).")
                 ShapService._explainer = None

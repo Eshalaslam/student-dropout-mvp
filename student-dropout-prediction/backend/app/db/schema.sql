@@ -81,8 +81,7 @@ CREATE TABLE IF NOT EXISTS public.interventions (
     mentor_name TEXT NOT NULL,
     type TEXT NOT NULL,
     notes TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open', 'In Progress', 'Resolved')),
-    intervention_status TEXT DEFAULT 'Not Started',
+    status TEXT NOT NULL DEFAULT 'Not Started' CHECK (status IN ('Not Started', 'In Progress', 'Resolved', 'Escalated')),
     assigned_mentor TEXT,
     last_updated DATE,
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -183,6 +182,19 @@ CREATE TABLE IF NOT EXISTS public.feature_influence (
     sensitive BOOLEAN DEFAULT false,
     used_in_model BOOLEAN DEFAULT true,
     audit_only BOOLEAN DEFAULT false
+);
+
+-- 15. Predictions Table (ML inference history & risk tracking)
+CREATE TABLE IF NOT EXISTS public.predictions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id TEXT NOT NULL,
+    risk_score DOUBLE PRECISION NOT NULL,
+    risk_band TEXT NOT NULL,
+    flagged BOOLEAN DEFAULT FALSE,
+    top_reasons JSONB DEFAULT '[]'::jsonb,
+    recommendations JSONB DEFAULT '[]'::jsonb,
+    features_snapshot JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Indices for rapid querying

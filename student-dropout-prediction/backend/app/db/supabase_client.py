@@ -55,6 +55,20 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+import decimal
+import numpy as np
+
+
+def _json_default(obj):
+    if isinstance(obj, (decimal.Decimal, np.floating)):
+        return float(obj)
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.ndarray,)):
+        return obj.tolist()
+    return str(obj)
+
+
 def _dictify(row) -> Optional[Dict[str, Any]]:
     """Convert a RealDictRow to a plain dict, or return None."""
     return dict(row) if row is not None else None
@@ -112,6 +126,12 @@ class DatabaseService:
         try:
             cur = conn.cursor()
             cur.execute(sql)
+            # Schema constraint migrations for flexible risk_band casing
+            try:
+                cur.execute("ALTER TABLE public.predictions DROP CONSTRAINT IF EXISTS predictions_risk_band_check;")
+                cur.execute("ALTER TABLE public.predictions ADD CONSTRAINT predictions_risk_band_check CHECK (LOWER(risk_band) IN ('high', 'medium', 'low', 'unassessed'));")
+            except Exception:
+                pass
             conn.commit()
             cur.close()
             print("Database schema initialized successfully.")
@@ -533,6 +553,81 @@ class DatabaseService:
                 seen_sids.add(sid)
 
         return student_records
+
+    # =========================================================================
+    # PREDICTIONS
+    # =========================================================================
+
+    def save_prediction(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Save a new prediction record for a student."""
+        now_iso = _now_iso()
+        rec_id = data.get("id") or str(uuid.uuid4())
+
+        record = {
+            "id": rec_id,
+            "student_id": str(data["student_id"]),
+            "risk_score": float(data.get("risk_score", 0.0)),
+            "risk_band": str(data.get("risk_band", "low")).lower(),
+            "flagged": bool(data.get("flagged", False)),
+            "top_reasons": data.get("top_reasons", []),
+            "recommendations": data.get("recommendations", []),
+            "features_snapshot": data.get("features_snapshot", {}),
+            "created_at": now_iso,
+        }
+
+        if self.is_supabase_connected:
+            try:
+                top_reasons_json = json.dumps(record["top_reasons"], default=_json_default)
+                recs_json = json.dumps(record["recommendations"], default=_json_default)
+                feats_json = json.dumps(record["features_snapshot"], default=_json_default)
+
+                row = self._execute_returning(
+                    """INSERT INTO predictions (id, student_id, risk_score, risk_band, flagged,
+                       top_reasons, recommendations, features_snapshot, created_at)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+                    (record["id"], record["student_id"], record["risk_score"],
+                     record["risk_band"], record["flagged"], top_reasons_json,
+                     recs_json, feats_json, record["created_at"]),
+                )
+                if row:
+                    return row
+            except Exception as e:
+                print(f"DB save_prediction error: {e}")
+
+        _in_memory_store.predictions.append(record)
+        return record
+
+    def get_predictions_by_student(self, student_id: str) -> List[Dict[str, Any]]:
+        """Get all prediction history for a student."""
+        if self.is_supabase_connected:
+            try:
+                return self._query(
+                    "SELECT * FROM predictions WHERE student_id = %s ORDER BY created_at DESC",
+                    (student_id,),
+                )
+            except Exception as e:
+                print(f"DB get_predictions_by_student error: {e}")
+
+        items = [p for p in _in_memory_store.predictions if p.get("student_id") == student_id]
+        items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return items
+
+    def get_latest_prediction(self, student_id: str) -> Optional[Dict[str, Any]]:
+        """Get the latest prediction for a student."""
+        preds = self.get_predictions_by_student(student_id)
+        return preds[0] if preds else None
+
+    def get_all_predictions(self) -> List[Dict[str, Any]]:
+        """Fetch all stored predictions."""
+        if self.is_supabase_connected:
+            try:
+                return self._query("SELECT * FROM predictions ORDER BY created_at DESC")
+            except Exception as e:
+                print(f"DB get_all_predictions error: {e}")
+
+        items = list(_in_memory_store.predictions)
+        items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return items
 
     # =========================================================================
     # DASHBOARD AGGREGATES

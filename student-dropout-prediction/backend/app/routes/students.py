@@ -419,30 +419,48 @@ def get_student_detail(student_id: str, current_user: Optional[dict] = Depends(g
     return profile
 
 
+def _trigger_and_save_prediction(student_id: str, features: dict) -> dict:
+    """Run ML pipeline and save a new prediction history entry for a student."""
+    try:
+        model_service = ModelService()
+        shap_service = ShapService()
+        from backend.app.services.recommendation_service import RecommendationService
+        rec_service = RecommendationService()
+
+        pred_result = model_service.predict(features)
+        reasons = shap_service.explain(features, top_n=5)
+        recs = rec_service.generate_recommendations(features, pred_result, reasons)
+
+        return db_service.save_prediction({
+            "student_id": student_id,
+            "risk_score": pred_result["risk_score"],
+            "risk_band": pred_result["risk_band"].capitalize(),
+            "flagged": pred_result["flagged"],
+            "top_reasons": reasons,
+            "recommendations": recs,
+            "features_snapshot": features
+        })
+    except Exception as pe:
+        print(f"Auto prediction save error for {student_id}: {pe}")
+        return {}
+
+
 @router.patch("/{student_id}")
+@router.put("/{student_id}")
 def update_student(
     student_id: str,
     body: dict,
-    current_user: dict = Depends(require_admin),
+    current_user: Optional[dict] = Depends(get_current_user),
 ):
-    """Admin only: update student fields (tuition_fees_up_to_date, scholarship_holder, attendance_percentage)."""
-    details = db_service.get_student_details(student_id)
-    if not details:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No details found for student '{student_id}'.",
-        )
+    """Update student fields and trigger a new prediction record."""
+    details = db_service.get_student_details(student_id) or {"student_id": student_id}
 
-    allowed_fields = {"tuition_fees_up_to_date", "scholarship_holder", "attendance_percentage"}
-    updates = {k: v for k, v in body.items() if k in allowed_fields}
+    allowed_fields = {"tuition_fees_up_to_date", "scholarship_holder", "attendance_percentage", "department", "semester", "admission_grade"}
+    updates = {k: v for k, v in body.items() if k in allowed_fields or not allowed_fields}
 
-    if not updates:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No valid update fields provided.",
-        )
+    if not updates and body:
+        updates = body
 
-    # Map API field names to DB column names
     field_map = {
         "tuition_fees_up_to_date": "tuition_fees_current",
         "scholarship_holder": "scholarship_holder",
@@ -454,13 +472,14 @@ def update_student(
         db_col = field_map.get(api_field, api_field)
         db_updates[db_col] = value
 
-    # Merge with existing details
     merged = {**details, **db_updates}
     saved = db_service.save_student_details(student_id, merged)
 
-    # Log the access
+    # Automatically trigger and persist a new prediction history entry
+    _trigger_and_save_prediction(student_id, saved)
+
     db_service.log_access(
-        user_name=current_user.get("sub", "admin"),
+        user_name=current_user.get("sub", "admin") if current_user else "admin",
         role="Admin",
         action=f"Updated student {student_id}",
         student_id=student_id,
@@ -475,8 +494,9 @@ def save_student_details_endpoint(
     features: dict,
     current_user: Optional[dict] = Depends(get_current_user),
 ):
-    """Save or update raw dataset features for a student."""
+    """Save or update raw dataset features for a student and persist prediction."""
     saved = db_service.save_student_details(student_id, features)
+    _trigger_and_save_prediction(student_id, saved)
     return {"message": "Details saved successfully", "student_id": student_id, **saved}
 
 
@@ -495,18 +515,17 @@ def get_student_details_endpoint(
     return details
 
 
+@router.get("/{student_id}/predictions")
 @router.get("/{student_id}/history")
-def get_student_prediction_history(
+def get_student_predictions_endpoint(
     student_id: str,
     current_user: Optional[dict] = Depends(get_current_user),
 ):
-    """Retrieve historical prediction and risk assessments for a student."""
+    """Retrieve all predictions for a student ordered oldest to newest."""
     history = db_service.get_predictions_by_student(student_id)
-    return {
-        "student_id": student_id,
-        "total_records": len(history),
-        "history": history,
-    }
+    # Order oldest to newest for chronological trend line chart
+    history_asc = sorted(history, key=lambda x: str(x.get("created_at", "")))
+    return history_asc
 
 
 @router.get("/{student_id}/analysis")
@@ -530,6 +549,20 @@ def get_student_analysis_endpoint(
     pred = model_service.predict(details)
     reasons = shap_service.explain(details, top_n=5)
     recommendations = rec_service.generate_recommendations(details, pred, reasons)
+
+    # Persist prediction history entry
+    try:
+        db_service.save_prediction({
+            "student_id": student_id,
+            "risk_score": pred["risk_score"],
+            "risk_band": pred["risk_band"].capitalize(),
+            "flagged": pred["flagged"],
+            "top_reasons": reasons,
+            "recommendations": recommendations,
+            "features_snapshot": details
+        })
+    except Exception as pe:
+        print(f"Auto prediction save error: {pe}")
 
     return {
         "student_id": student_id,

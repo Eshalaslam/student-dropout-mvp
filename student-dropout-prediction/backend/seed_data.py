@@ -662,6 +662,47 @@ def seed_feature_influence():
     print(f"  Created {len(features)} feature influence records")
 
 
+def seed_predictions():
+    """Compute and seed predictions for all student details."""
+    print("Seeding predictions...")
+    existing = db_service.get_all_predictions()
+    if existing:
+        print("  Predictions already exist. Skipping.")
+        return
+
+    from backend.app.services.model_service import ModelService
+    from backend.app.services.shap_service import ShapService
+    from backend.app.services.recommendation_service import RecommendationService
+
+    model_service = ModelService()
+    shap_service = ShapService()
+    rec_service = RecommendationService()
+
+    details = db_service.get_all_student_details()
+    count = 0
+    for d in details:
+        sid = d.get("student_id")
+        if not sid:
+            continue
+        try:
+            pred = model_service.predict(d)
+            reasons = shap_service.explain(d, top_n=5)
+            recs = rec_service.generate_recommendations(d, pred, reasons)
+            db_service.save_prediction({
+                "student_id": sid,
+                "risk_score": pred["risk_score"],
+                "risk_band": pred["risk_band"].capitalize(),
+                "flagged": pred["flagged"],
+                "top_reasons": reasons,
+                "recommendations": recs,
+                "features_snapshot": d
+            })
+            count += 1
+        except Exception as e:
+            print(f"Error seeding prediction for {sid}: {e}")
+    print(f"  Created {count} predictions")
+
+
 def main():
     """Run all seed functions."""
     print("=" * 60)
@@ -672,6 +713,7 @@ def main():
     mentors = seed_mentors()
     seed_students()
     seed_mentor_assignments(mentors)
+    seed_predictions()
     seed_interventions()
     seed_reports()
     seed_access_logs()

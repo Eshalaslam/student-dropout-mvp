@@ -5,6 +5,7 @@ Loads the fitted ML pipeline artifacts and returns dropout risk predictions.
 import os
 import joblib
 import pandas as pd
+import warnings
 from backend.app.services.feature_mapping import convert_to_model_input
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "../../models")
@@ -39,14 +40,16 @@ class ModelService:
             scaler_path = _resolve_model_path("scaler.pkl")
             threshold_path = _resolve_model_path("threshold.pkl")
 
-            if os.path.exists(model_path):
-                ModelService._model = joblib.load(model_path)
-            if os.path.exists(scaler_path):
-                ModelService._scaler = joblib.load(scaler_path)
-            if os.path.exists(threshold_path):
-                ModelService._threshold = float(joblib.load(threshold_path))
-            else:
-                ModelService._threshold = 0.35
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                if os.path.exists(model_path):
+                    ModelService._model = joblib.load(model_path)
+                if os.path.exists(scaler_path):
+                    ModelService._scaler = joblib.load(scaler_path)
+                if os.path.exists(threshold_path):
+                    ModelService._threshold = float(joblib.load(threshold_path))
+                else:
+                    ModelService._threshold = 0.35
 
     def predict(self, features: dict) -> dict:
         """Run inference and return risk score, band, and flagged status."""

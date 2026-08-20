@@ -79,7 +79,7 @@ def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     all_interventions = db_service.get_interventions()
     active_interventions = sum(
         1 for i in all_interventions
-        if i.get("status") in ("Open", "In Progress")
+        if i.get("status") in ("Not Started", "In Progress", "Escalated")
     )
 
     return {
@@ -163,7 +163,7 @@ def get_dashboard_summary(current_user: Optional[dict] = Depends(get_current_use
     all_interventions = db_service.get_interventions()
     active_interventions = sum(
         1 for i in all_interventions
-        if i.get("status") in ("Open", "In Progress")
+        if i.get("status") in ("Not Started", "In Progress", "Escalated")
     )
 
     return {
@@ -195,7 +195,7 @@ def create_dashboard_intervention(
     """Record an intervention from dashboard."""
     mentor_name = body.get("mentor_name") or (current_user.get("name") if current_user else "Mentor")
     assigned_mentor = body.get("assigned_mentor") or (current_user.get("mentorId") if current_user else None)
-    int_status = body.get("status", "Open")
+    int_status = body.get("status", "Not Started")
 
     record = {
         "student_id": body.get("student_id"),
@@ -203,7 +203,6 @@ def create_dashboard_intervention(
         "type": body.get("type", "Academic Advising"),
         "notes": body.get("notes", ""),
         "status": int_status,
-        "intervention_status": int_status,
         "assigned_mentor": assigned_mentor,
     }
     return db_service.create_intervention(record)

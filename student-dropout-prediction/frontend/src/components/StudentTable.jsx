@@ -27,16 +27,15 @@ export default function StudentTable({ students, onSelect, onAssignMentor }) {
             const lastIntervention =
               Array.isArray(s.interventions) && s.interventions.length > 0
                 ? s.interventions[s.interventions.length - 1].date ||
-                  s.interventions[s.interventions.length - 1].created_at
+                s.interventions[s.interventions.length - 1].created_at
                 : null;
 
             return (
               <tr
                 key={s.student_id}
                 onClick={() => onSelect(s.student_id)}
-                className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors border-l-2 ${
-                  isHighRisk ? "border-l-rose-400 bg-rose-50/30" : "border-l-transparent"
-                }`}
+                className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors border-l-2 ${isHighRisk ? "border-l-rose-400 bg-rose-50/30" : "border-l-transparent"
+                  }`}
               >
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-800">{s.student_name}</div>

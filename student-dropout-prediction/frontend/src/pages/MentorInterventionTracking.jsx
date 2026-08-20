@@ -27,18 +27,18 @@ import { getScopedStudents } from "../utils/useRbac";
 const STATUSES = ["Not Started", "In Progress", "Resolved", "Escalated"];
 
 const STATUS_STYLES = {
-  "Not Started":  { badge: "bg-slate-100 text-slate-600 border-slate-200",   column: "border-t-slate-400",   dot: "bg-slate-400"  },
-  "In Progress":  { badge: "bg-sky-50 text-sky-700 border-sky-200",           column: "border-t-sky-500",     dot: "bg-sky-500"    },
-  "Resolved":     { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", column: "border-t-emerald-500", dot: "bg-emerald-500" },
-  "Escalated":    { badge: "bg-rose-50 text-rose-700 border-rose-200",         column: "border-t-rose-500",    dot: "bg-rose-500"   },
+  "Not Started": { badge: "bg-slate-100 text-slate-600 border-slate-200", column: "border-t-slate-400", dot: "bg-slate-400" },
+  "In Progress": { badge: "bg-sky-50 text-sky-700 border-sky-200", column: "border-t-sky-500", dot: "bg-sky-500" },
+  "Resolved": { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", column: "border-t-emerald-500", dot: "bg-emerald-500" },
+  "Escalated": { badge: "bg-rose-50 text-rose-700 border-rose-200", column: "border-t-rose-500", dot: "bg-rose-500" },
 };
 
 const KPI_ACCENTS = {
-  Total:        "text-slate-900",
+  Total: "text-slate-900",
   "Not Started": "text-slate-500",
   "In Progress": "text-sky-700",
-  Resolved:     "text-emerald-600",
-  Escalated:    "text-rose-600",
+  Resolved: "text-emerald-600",
+  Escalated: "text-rose-600",
 };
 
 // ─── small helpers ──────────────────────────────────────────────────────────
@@ -107,9 +107,8 @@ function StudentDetailDrawer({
       <div className="relative w-full max-w-md bg-white border-l border-slate-200 shadow-xl flex flex-col overflow-hidden">
         {/* header */}
         <div
-          className={`px-5 pt-5 pb-4 border-b border-slate-100 border-l-2 ${
-            student.risk_category === "High" ? "border-l-rose-400" : "border-l-transparent"
-          }`}
+          className={`px-5 pt-5 pb-4 border-b border-slate-100 border-l-2 ${student.risk_category === "High" ? "border-l-rose-400" : "border-l-transparent"
+            }`}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -156,11 +155,10 @@ function StudentDetailDrawer({
                       key={s}
                       onClick={() => handleStatusChange(s)}
                       disabled={statusUpdating}
-                      className={`px-3 py-1 rounded border text-xs font-medium transition-all disabled:opacity-60 ${
-                        active
-                          ? `${st.badge} ring-2 ring-offset-1 ring-current`
-                          : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                      }`}
+                      className={`px-3 py-1 rounded border text-xs font-medium transition-all disabled:opacity-60 ${active
+                        ? `${st.badge} ring-2 ring-offset-1 ring-current`
+                        : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                        }`}
                     >
                       {s}
                     </button>
@@ -270,9 +268,8 @@ function KanbanCard({ student, onClick }) {
   return (
     <div
       onClick={onClick}
-      className={`bg-white border border-slate-200 rounded-lg p-3.5 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all space-y-2.5 border-l-2 ${
-        student.risk_category === "High" ? "border-l-rose-400 bg-rose-50/20" : "border-l-transparent"
-      }`}
+      className={`bg-white border border-slate-200 rounded-lg p-3.5 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all space-y-2.5 border-l-2 ${student.risk_category === "High" ? "border-l-rose-400 bg-rose-50/20" : "border-l-transparent"
+        }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -698,22 +695,20 @@ export default function MentorInterventionTracking() {
           <button
             onClick={() => setViewMode("kanban")}
             title="Kanban view"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              viewMode === "kanban"
-                ? "bg-white text-teal-700 shadow-sm border border-slate-200"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === "kanban"
+              ? "bg-white text-teal-700 shadow-sm border border-slate-200"
+              : "text-slate-500 hover:text-slate-700"
+              }`}
           >
             <LayoutGrid className="w-3.5 h-3.5" /> Kanban
           </button>
           <button
             onClick={() => setViewMode("table")}
             title="Table view"
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              viewMode === "table"
-                ? "bg-white text-teal-700 shadow-sm border border-slate-200"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === "table"
+              ? "bg-white text-teal-700 shadow-sm border border-slate-200"
+              : "text-slate-500 hover:text-slate-700"
+              }`}
           >
             <Table2 className="w-3.5 h-3.5" /> Table
           </button>

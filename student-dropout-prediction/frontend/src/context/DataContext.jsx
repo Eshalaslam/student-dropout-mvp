@@ -108,7 +108,7 @@ export function DataProvider({ children }) {
       assignedMentor: newMentorName || newMentorId,
     });
     if (newMentorId) {
-      api.reassignMentor(studentId, newMentorId).catch(() => {});
+      api.reassignMentor(studentId, newMentorId).catch(() => { });
     }
   }
 
@@ -119,7 +119,7 @@ export function DataProvider({ children }) {
         intervention,
       ],
     });
-    api.addStudentIntervention(studentId, intervention).catch(() => {});
+    api.addStudentIntervention(studentId, intervention).catch(() => { });
   }
 
   function handleUpdateInterventionStatus(studentId, index, status) {
@@ -127,15 +127,15 @@ export function DataProvider({ children }) {
       prev.map((s) =>
         s.student_id === studentId
           ? {
-              ...s,
-              interventions: (s.interventions || []).map((iv, i) =>
-                i === index ? { ...iv, status } : iv
-              ),
-            }
+            ...s,
+            interventions: (s.interventions || []).map((iv, i) =>
+              i === index ? { ...iv, status } : iv
+            ),
+          }
           : s
       )
     );
-    api.updateInterventionStatus(studentId, status).catch(() => {});
+    api.updateInterventionStatus(studentId, status).catch(() => { });
   }
 
   function handleAddStudent(newStudent) {
@@ -144,7 +144,7 @@ export function DataProvider({ children }) {
       if (prev.some((s) => s.student_id === newStudent.student_id)) return prev;
       return [newStudent, ...prev];
     });
-    api.addStudent(newStudent).catch(() => {});
+    api.addStudent(newStudent).catch(() => { });
   }
 
   // Refresh functions for pages that need manual re-fetch (e.g., after CRUD)

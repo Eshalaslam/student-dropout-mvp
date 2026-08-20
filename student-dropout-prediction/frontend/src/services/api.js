@@ -130,6 +130,10 @@ export const api = {
     return await request(`/students/${studentId}/history`);
   },
 
+  async getStudentPredictions(studentId) {
+    return await request(`/students/${studentId}/predictions`);
+  },
+
   async getStudentAnalysis(studentId) {
     return await request(`/students/${studentId}/analysis`);
   },
