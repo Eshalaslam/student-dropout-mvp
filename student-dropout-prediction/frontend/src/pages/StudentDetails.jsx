@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, AlertTriangle, Lock, Loader2 } from "lucide-react";
 import RiskBadge from "../components/RiskBadge";
@@ -16,12 +16,15 @@ function Row({ label, value }) {
   return (
     <div className="flex justify-between text-sm">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="font-mono text-slate-800">{value}</dd>
+      <dd className="font-mono text-slate-800">{value ?? "—"}</dd>
     </div>
   );
 }
 
 function BooleanBadge({ value, trueLabel, falseLabel }) {
+  if (value === null || value === undefined) {
+    return <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500">—</span>;
+  }
   return (
     <span
       className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -61,8 +64,57 @@ export default function StudentDetails({
   const [form, setForm] = useState({ type: "Counseling call", notes: "" });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [fetchedStudent, setFetchedStudent] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const student = students.find((s) => s.student_id === studentId);
+  // 1. Flexible student matching in prop array
+  const studentInProp = useMemo(() => {
+    if (!studentId || !Array.isArray(students)) return null;
+    const cleanId = String(studentId).trim().toLowerCase();
+    const rawId = cleanId.replace(/^stu-/i, "");
+    return students.find((s) => {
+      if (!s || !s.student_id) return false;
+      const sClean = String(s.student_id).trim().toLowerCase();
+      const sRaw = sClean.replace(/^stu-/i, "");
+      return sClean === cleanId || sRaw === rawId;
+    });
+  }, [students, studentId]);
+
+  // 2. Fetch from backend API if student not found in prop array
+  useEffect(() => {
+    if (!studentInProp && studentId) {
+      setLoading(true);
+      api
+        .getStudent(studentId)
+        .then((data) => {
+          if (data && (data.student_id || data.id)) {
+            setFetchedStudent(data);
+          } else {
+            setFetchedStudent(null);
+          }
+        })
+        .catch(() => {
+          setFetchedStudent(null);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    } else {
+      setFetchedStudent(null);
+      setLoading(false);
+    }
+  }, [studentInProp, studentId]);
+
+  const student = studentInProp || fetchedStudent;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center space-y-3">
+        <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
+        <p className="text-sm text-slate-500">Loading student details…</p>
+      </div>
+    );
+  }
 
   if (!student) {
     return (
@@ -80,7 +132,10 @@ export default function StudentDetails({
   }
 
   // RBAC check: Mentors can only view assigned students
-  if (currentUser?.role === "Mentor" && !getScopedStudents(currentUser.role, currentUser.mentorName, [student]).length) {
+  if (
+    currentUser?.role === "Mentor" &&
+    !getScopedStudents(currentUser, [student]).length
+  ) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
         <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mb-3">
@@ -100,12 +155,18 @@ export default function StudentDetails({
     );
   }
 
-  const interventionCount = Array.isArray(student.interventions) ? student.interventions.length : 0;
+  const interventionsList = student.interventions || [];
+  const interventionCount = interventionsList.length;
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "risk", label: "Why is this student at risk?" },
     { id: "interventions", label: `Interventions (${interventionCount})` },
   ];
+
+  const dropoutProbability = typeof student.dropout_probability === "number" ? student.dropout_probability : 0;
+  const approvalRate = typeof student.approval_rate === "number" ? student.approval_rate : 0;
+  const attendancePercentage = typeof student.attendance_percentage === "number" ? student.attendance_percentage : (student.attendance || 0);
+  const riskFactors = Array.isArray(student.risk_factors) ? student.risk_factors : [];
 
   async function submitIntervention() {
     setSubmitting(true);
@@ -119,9 +180,15 @@ export default function StudentDetails({
     try {
       // Persist to backend
       await api.addStudentIntervention(student.student_id, interventionData);
-      // Also update local state if callback provided
+      // Update local state if callback provided
       if (onAddIntervention) {
         onAddIntervention(student.student_id, interventionData);
+      }
+      if (fetchedStudent) {
+        setFetchedStudent((prev) => ({
+          ...prev,
+          interventions: [...(prev.interventions || []), interventionData],
+        }));
       }
       setForm({ type: "Counseling call", notes: "" });
       setShowAddForm(false);
@@ -146,21 +213,21 @@ export default function StudentDetails({
       >
         <div>
           <div className="flex items-center gap-1">
-            <h1 className="text-lg font-semibold text-slate-900 tracking-tight">{student.student_name}</h1>
+            <h1 className="text-lg font-semibold text-slate-900 tracking-tight">{student.student_name || `Student ${student.student_id}`}</h1>
             <SimTag />
           </div>
           <div className="text-sm text-slate-500 font-mono mt-0.5">
-            {student.student_id} · {student.department} · Semester {student.semester}
+            {student.student_id} · {student.department || "General"} · Semester {student.semester || 1}
           </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
             <div className="text-xs uppercase tracking-wide text-slate-400">Predicted risk</div>
             <div className="text-2xl font-mono font-semibold tabular-nums text-slate-900">
-              {Math.round(student.dropout_probability * 100)}%
+              {Math.round(dropoutProbability * 100)}%
             </div>
           </div>
-          <RiskBadge level={student.risk_category} probability={student.dropout_probability} />
+          <RiskBadge level={student.risk_category || "Low"} probability={dropoutProbability} />
         </div>
       </div>
       <div className="text-xs text-slate-400 -mt-3">Estimated by the model, not a guaranteed outcome.</div>
@@ -190,19 +257,19 @@ export default function StudentDetails({
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <dt className="text-slate-500">Approval rate</dt>
-                  <dd className="font-mono text-slate-800">{Math.round(student.approval_rate * 100)}%</dd>
+                  <dd className="font-mono text-slate-800">{Math.round(approvalRate * 100)}%</dd>
                 </div>
-                <ProgressBar value={student.approval_rate * 100} color={approvalRateColor(student.approval_rate)} />
+                <ProgressBar value={approvalRate * 100} color={approvalRateColor(approvalRate)} />
               </div>
               <Row
                 label="Sem 1 approved / enrolled"
-                value={`${student.curricular_units_1st_sem_approved} / ${student.curricular_units_1st_sem_enrolled}`}
+                value={`${student.curricular_units_1st_sem_approved ?? 0} / ${student.curricular_units_1st_sem_enrolled ?? 0}`}
               />
               <Row
                 label="Sem 2 approved / enrolled"
-                value={`${student.curricular_units_2nd_sem_approved} / ${student.curricular_units_2nd_sem_enrolled}`}
+                value={`${student.curricular_units_2nd_sem_approved ?? 0} / ${student.curricular_units_2nd_sem_enrolled ?? 0}`}
               />
-              <Row label="Failed units" value={student.curricular_units_failed} />
+              <Row label="Failed units" value={student.curricular_units_failed ?? 0} />
             </dl>
           </div>
 
@@ -210,9 +277,9 @@ export default function StudentDetails({
             <h3 className="text-xs uppercase tracking-wide text-slate-400 mb-3 flex items-center">
               Attendance <SimTag />
             </h3>
-            <div className="text-3xl font-mono font-semibold text-slate-900">{student.attendance_percentage}%</div>
+            <div className="text-3xl font-mono font-semibold text-slate-900">{attendancePercentage}%</div>
             <div className="mt-3">
-              <ProgressBar value={student.attendance_percentage} color={attendanceColor(student.attendance_percentage)} />
+              <ProgressBar value={attendancePercentage} color={attendanceColor(attendancePercentage)} />
             </div>
             <p className="text-xs text-slate-400 mt-3">Simulated for this demo — not part of the UCI dataset.</p>
           </div>
@@ -259,11 +326,15 @@ export default function StudentDetails({
           <p className="text-xs text-slate-400 mb-4">
             Plain-language explanation derived from the model — no raw scores shown here.
           </p>
-          <div>
-            {student.risk_factors.map((f, i) => (
-              <FactorBar key={i} factor={f} />
-            ))}
-          </div>
+          {riskFactors.length > 0 ? (
+            <div>
+              {riskFactors.map((f, i) => (
+                <FactorBar key={i} factor={f} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400 py-4">No specific risk factors identified for this student.</p>
+          )}
         </div>
       )}
 
@@ -320,11 +391,11 @@ export default function StudentDetails({
             </div>
           )}
 
-          {(student.interventions?.length ?? 0) === 0 ? (
+          {interventionsList.length === 0 ? (
             <p className="text-sm text-slate-400 py-6 text-center">No interventions logged yet.</p>
           ) : (
             <div className="space-y-3">
-              {(student.interventions || [])
+              {interventionsList
                 .map((iv, idx) => ({ ...iv, __idx: idx }))
                 .reverse()
                 .map((iv) => (
@@ -335,7 +406,7 @@ export default function StudentDetails({
                         <span className="text-sm font-medium text-slate-800">{iv.type}</span>
                         <StatusPill
                           status={iv.status}
-                          onChange={(status) => onUpdateInterventionStatus(student.student_id, iv.__idx, status)}
+                          onChange={(status) => onUpdateInterventionStatus && onUpdateInterventionStatus(student.student_id, iv.__idx, status)}
                         />
                       </div>
                       <div className="text-xs text-slate-400 font-mono mt-0.5">
@@ -352,3 +423,4 @@ export default function StudentDetails({
     </div>
   );
 }
+

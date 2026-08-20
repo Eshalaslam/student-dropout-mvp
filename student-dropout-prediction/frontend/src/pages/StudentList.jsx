@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, SlidersHorizontal, UserPlus } from "lucide-react";
 import StudentTable from "../components/StudentTable";
@@ -136,7 +136,7 @@ export default function StudentList({ students = [], onAssignMentor, onStudentAd
 
       <StudentTable
         students={filtered}
-        onSelect={(id) => navigate(/students/)}
+        onSelect={(id) => navigate(`/students/${id}`)}
         onAssignMentor={onAssignMentor}
       />
 

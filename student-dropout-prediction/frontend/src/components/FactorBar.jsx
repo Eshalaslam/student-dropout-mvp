@@ -10,7 +10,7 @@ export default function FactorBar({ factor }) {
   return (
     <div className="py-2.5 border-b border-slate-100 last:border-0">
       <div className="flex items-center justify-between mb-1.5 gap-3">
-        <span className="text-sm text-slate-700">{factor.factor}</span>
+        <span className="text-sm text-slate-700">{factor.factor || factor.description || factor.feature || "Risk factor"}</span>
         <span className={`text-xs font-mono uppercase tracking-wide whitespace-nowrap ${labelColor}`}>{label}</span>
       </div>
       <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">

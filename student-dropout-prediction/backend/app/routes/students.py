@@ -25,27 +25,27 @@ def _compute_student_profile(student_id: str, details: dict) -> dict:
     risk_category = "Low"
     risk_factors = []
 
-    if details:
-        try:
-            model_service = ModelService()
-            pred = model_service.predict(details)
-            dropout_probability = pred["risk_score"]
-            risk_category = pred["risk_band"].capitalize()  # High, Medium, Low
+    try:
+        model_service = ModelService()
+        pred = model_service.predict(details or {})
+        dropout_probability = pred["risk_score"]
+        risk_category = pred["risk_band"].capitalize()  # High, Medium, Low
 
-            # Get SHAP risk factors
-            shap_service = ShapService()
-            shap_reasons = shap_service.explain(details, top_n=5)
-            for r in shap_reasons:
-                impact = r.get("impact", 0)
-                tier = "major" if abs(impact) > 0.1 else "moderate" if abs(impact) > 0.05 else "minor"
-                direction = "risk" if impact > 0 else "protective"
-                risk_factors.append({
-                    "factor": r.get("feature", "unknown"),
-                    "tier": tier,
-                    "direction": direction,
-                })
-        except Exception:
-            pass
+        # Get SHAP risk factors
+        shap_service = ShapService()
+        shap_reasons = shap_service.explain(details or {}, top_n=5)
+        for r in shap_reasons:
+            impact = r.get("impact", 0)
+            tier = "major" if abs(impact) > 0.1 else "moderate" if abs(impact) > 0.05 else "minor"
+            direction = "risk" if impact > 0 else "protective"
+            factor_label = r.get("description") or r.get("feature", "unknown").replace("_", " ").title()
+            risk_factors.append({
+                "factor": factor_label,
+                "tier": tier,
+                "direction": direction,
+            })
+    except Exception as e:
+        print(f"Notice: Risk computation fallback for student {student_id} ({e})")
 
     # Compute approval rate
     sem1_approved = details.get("units_approved_sem1", 0) if details else 0
@@ -294,8 +294,9 @@ def list_students(
                     for r in shap_service.explain(d, top_n=5):
                         impact = r.get("impact", 0)
                         tier = "major" if abs(impact) > 0.1 else "moderate" if abs(impact) > 0.05 else "minor"
+                        factor_label = r.get("description") or r.get("feature", "unknown").replace("_", " ").title()
                         risk_factors.append({
-                            "factor": r.get("feature", "unknown"),
+                            "factor": factor_label,
                             "tier": tier,
                             "direction": "risk" if impact > 0 else "protective",
                         })
