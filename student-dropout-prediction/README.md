@@ -80,24 +80,26 @@ The system enforces Role-Based Access Control (RBAC) across three distinct user 
 * **Multi-Table Synchronization**: Atomically updates `mentor_assignments`, `users` (`mentor_id`, `mentor_name`), and `interventions` tables.
 * **Persistence**: Retains mentor assignments across sessions, page refreshes, and user logins.
 
-### 3. Database Connection Pooling
-* **Threaded Pool**: Implements `psycopg2.pool.ThreadedConnectionPool` configured via `MAX_CONNECTIONS` (default `10`) and `MIN_CONNECTIONS` (default `1`).
-* **Connection Hygiene**: Ensures every query checks out a connection and safely returns it (`putconn()`) in `finally` blocks, with `conn.rollback()` on errors.
-* **Graceful Disposal**: Hooked into FastAPI `@app.on_event("shutdown")` to cleanly close all active connections.
+### 3. Resilient Database Connection Pooling
+* **Threaded Pool**: Implements `psycopg2.pool.ThreadedConnectionPool` configured conservatively (`MAX_CONNECTIONS=3`, `MIN_CONNECTIONS=1`) to prevent cloud connection slot exhaustion (e.g. Aiven/Supabase).
+* **Connection Hygiene & Eviction**: Checks out connections safely and returns them (`putconn()`) in `finally` blocks. Stale or closed connections are automatically detected via `_get_connection()` health checks and evicted (`close=True`).
+* **N+1 Query Elimination**: Bulk queries (`get_all_student_details`, `get_all_student_users_bulk`, `get_all_interventions_bulk`, `list_interventions`) fetch dataset records in $O(1)$ database calls per request.
+* **Graceful Disposal**: Hooked into FastAPI `@app.on_event("shutdown")` to cleanly close active connection pools.
 * **Resilient Fallback**: Automatically falls back to an in-memory data store if PostgreSQL is unreachable.
 
 ### 4. Machine Learning & SHAP Explainability
 * **Model Engine**: Logistic Regression / Gradient Boosting classifier trained on UCI dataset features.
+* **Automated Risk Trigger**: Editing and saving a student's profile details automatically triggers the ML pipeline, inserts a new historical entry in `predictions`, and updates the student's Risk History line chart and table.
 * **SHAP Risk Drivers**: Generates top positive (risk-elevating) and negative (protective) feature impacts per student.
 * **Automated Recommendations**: Generates contextual academic, financial, and counseling recommendations.
 
 ### 5. Mentor Intervention Tracking & Case Notes
-* **Intervention Lifecycle**: Tracks status progression (`Not Started` -> `Open` -> `In Progress` -> `Resolved` -> `Escalated`).
-* **Timestamped Notes**: Allows mentors to append historical intervention notes.
+* **Intervention Lifecycle**: Tracks 4 status stages (`Not Started` -> `In Progress` -> `Resolved` -> `Escalated`).
+* **Add & Edit Intervention Capability**: Full modal support (`InterventionModal.jsx`) allowing mentors to create and update intervention type, priority (`Low`, `Medium`, `High`, `Critical`), description, follow-up requirements/dates, and timestamped progress notes.
 
-### 6. Reports & Bias/Privacy Audit
-* **Reports Generator**: Filtered cohort reporting exported as downloadable CSV or structured JSON.
-* **Bias & Fairness Audit**: Evaluates demographic parity, equal opportunity, and disparate impact metrics across protected attributes.
+### 6. Containerization & Cloud Deployment
+* **Docker & Docker Compose**: Multi-stage build setup (`frontend/Dockerfile` with Nginx, `backend/Dockerfile` with Gunicorn + Uvicorn) for one-command local orchestration via `docker compose up --build`.
+* **Cloud Ready**: Supported deployment guides for AWS (EC2 & App Runner) and Render.
 
 ---
 
@@ -537,6 +539,18 @@ npm run dev
 ```
 
 * Web Application URL: **[http://localhost:5173](http://localhost:5173)**
+
+### 3. Run with Docker & Docker Compose (Containerized Setup)
+
+Orchestrate both frontend (Nginx) and backend (Gunicorn/Uvicorn) with a single command from `student-dropout-prediction/` root:
+
+```bash
+docker compose up --build
+```
+
+* Frontend Application: **[http://localhost:3000](http://localhost:3000)**
+* Backend API Documentation: **[http://localhost:8000/docs](http://localhost:8000/docs)**
+* API Health Check: **[http://localhost:8000/api/health](http://localhost:8000/api/health)**
 
 ---
 
